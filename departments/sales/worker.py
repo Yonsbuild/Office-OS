@@ -17,50 +17,92 @@ def handle(task: Task) -> Task:
     task.payload["trace"].append(__name__)
 
     if task.kind == "generate_outreach":
+        lead_name = task.payload.get("lead_name", "there")
+        lead_role = task.payload.get("lead_role", "team lead")
+        institution = task.payload.get("institution", "your institution")
+        relationship_context = task.payload.get("relationship_context", "").strip()
+        preferred_angle = task.payload.get("preferred_angle", "risk")
 
-        angles = load_file(LUMEN_ANGLES)
-        proof = load_file(LUMEN_PROOF)
+        # Intro line
+        intro = f"Hi {lead_name},"
+        if relationship_context:
+            intro += f" {relationship_context.capitalize()}."
 
-        # Risk angle
-        risk_message = """
-Hi — I’ve been looking into how lending teams are verifying key financial metrics like DSCR and income.
+        institution_phrase = f"teams at {institution}" if institution else "lending teams"
 
-One thing that keeps coming up:
-Most decisions rely on reported numbers that aren’t independently re-verified.
+        # --- Outreach Variants ---
 
-I recently ran a check that caught a DSCR discrepancy (reported 1.42 vs actual ~1.18) that would have otherwise passed through.
+        risk_message = f"""
+{intro}
 
-Curious — how does your team currently catch things like that?
+I’ve been speaking with {institution_phrase} about how key financial metrics like DSCR and income are verified.
+
+One thing that keeps coming up is that reported numbers often aren’t independently re-checked.
+
+In one case, a DSCR was reported as 1.42 but recalculated closer to 1.18 — something that could have easily passed through.
+
+Given your role as a {lead_role}, I was curious how your team currently catches issues like that.
 """.strip()
 
-        # Compliance angle
-        compliance_message = """
-Hi — quick question on your process.
+        compliance_message = f"""
+{intro}
 
-With more AI and automation being used in underwriting, how are teams handling auditability of decisions?
+Quick question based on your role as a {lead_role}.
 
-Most workflows don’t leave a clear trail showing how numbers were verified.
+As more automation and AI enter underwriting workflows, how is {institution} handling auditability around financial decisions?
 
-I’ve been working on a system that logs every check with evidence and flags inconsistencies automatically.
+Most processes still don’t leave a clear trail showing how numbers were verified.
 
-Would be interested to hear how your team is thinking about that.
+I’ve been working on a lightweight system that logs each check with supporting evidence and flags inconsistencies automatically.
+
+I’d be interested to hear how your team is thinking about that.
 """.strip()
 
-        # Efficiency angle
-        efficiency_message = """
-Hi — I’ve been speaking with a few teams about the time spent double-checking financial calculations in lending workflows.
+        efficiency_message = f"""
+{intro}
 
-A lot of that still seems manual.
+I’ve been speaking with lending teams about how much time still goes into double-checking calculations like DSCR, income, and DTI.
 
-I built a lightweight system that recomputes key metrics like DSCR and flags inconsistencies instantly, so teams don’t have to re-check everything themselves.
+A lot of that process is still manual.
 
-Is that something your team has tried to streamline yet?
+I built a lightweight system that recomputes key metrics and flags inconsistencies automatically, so teams don’t have to re-check everything themselves.
+
+Given your role as a {lead_role}, I was curious whether your team has looked at streamlining that process.
 """.strip()
 
-        task.payload["outreach_variants"] = {
+        variants = {
             "risk": risk_message,
             "compliance": compliance_message,
             "efficiency": efficiency_message
+        }
+
+        # --- Follow Ups ---
+
+        follow_up_1 = f"""
+Hi {lead_name},
+
+Wanted to circle back on this — I’m speaking with a few teams about how financial checks like DSCR are being verified.
+
+Curious if this is something your team has already dialed in, or if inconsistencies still slip through occasionally.
+""".strip()
+
+        follow_up_2 = f"""
+Hi {lead_name},
+
+Following up one last time — I’ve seen a few cases recently where small calculation mismatches (like DSCR) made it all the way through review.
+
+It’s a small issue until it isn’t, which is why I’ve been digging into how teams are handling verification.
+
+If it’s relevant, happy to share what I’ve been seeing.
+""".strip()
+
+        # Attach to payload
+        task.payload["outreach_variants"] = variants
+        task.payload["selected_outreach"] = variants.get(preferred_angle, risk_message)
+
+        task.payload["follow_ups"] = {
+            "follow_up_1": follow_up_1,
+            "follow_up_2": follow_up_2
         }
 
     return task
