@@ -21,19 +21,46 @@ def handle(task: Task) -> Task:
         angles = load_file(LUMEN_ANGLES)
         proof = load_file(LUMEN_PROOF)
 
-        # simple first-pass message (we’ll improve later)
-        message = f"""
-Hi — I’ve been looking into how lending teams are handling verification of financial calculations (DSCR, income, etc.).
+        # Risk angle
+        risk_message = """
+Hi — I’ve been looking into how lending teams are verifying key financial metrics like DSCR and income.
 
-One thing that stood out:
+One thing that keeps coming up:
 Most decisions rely on reported numbers that aren’t independently re-verified.
 
-I recently built a lightweight system that recomputes key metrics and flags inconsistencies automatically.
-In one case, it caught a DSCR discrepancy (reported 1.42 vs actual ~1.18) that would have otherwise passed through.
+I recently ran a check that caught a DSCR discrepancy (reported 1.42 vs actual ~1.18) that would have otherwise passed through.
 
-Not pitching anything — just curious how your team is handling verification today.
-"""
+Curious — how does your team currently catch things like that?
+""".strip()
 
-        task.payload["outreach_message"] = message.strip()
+        # Compliance angle
+        compliance_message = """
+Hi — quick question on your process.
+
+With more AI and automation being used in underwriting, how are teams handling auditability of decisions?
+
+Most workflows don’t leave a clear trail showing how numbers were verified.
+
+I’ve been working on a system that logs every check with evidence and flags inconsistencies automatically.
+
+Would be interested to hear how your team is thinking about that.
+""".strip()
+
+        # Efficiency angle
+        efficiency_message = """
+Hi — I’ve been speaking with a few teams about the time spent double-checking financial calculations in lending workflows.
+
+A lot of that still seems manual.
+
+I built a lightweight system that recomputes key metrics like DSCR and flags inconsistencies instantly, so teams don’t have to re-check everything themselves.
+
+Is that something your team has tried to streamline yet?
+""".strip()
+
+        task.payload["outreach_variants"] = {
+            "risk": risk_message,
+            "compliance": compliance_message,
+            "efficiency": efficiency_message
+        }
 
     return task
