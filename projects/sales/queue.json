@@ -1,0 +1,36 @@
+[
+  {
+    "lead_name": "Test Contact",
+    "lead_role": "lending leader",
+    "institution": "regional bank",
+    "relationship_context": "a mutual contact suggested I reach out",
+    "preferred_angle": "risk",
+    "stage": "new",
+    "status": "outreach_generated",
+    "last_contacted": null,
+    "next_action": "awaiting_founder_review",
+    "notes": "",
+    "trace": [
+      "departments.sales.worker",
+      "departments.ops.worker",
+      "departments.verifier.worker"
+    ],
+    "outreach_variants": {
+      "risk": "Hi Test Contact, A mutual contact suggested i reach out.\n\nI\u2019ve been speaking with teams at regional bank about how key financial metrics like DSCR and income are verified.\n\nOne thing that keeps coming up is that reported numbers often aren\u2019t independently re-checked.\n\nIn one case, a DSCR was reported as 1.42 but recalculated closer to 1.18 \u2014 something that could have easily passed through.\n\nGiven your role as a lending leader, I was curious how your team currently catches issues like that.",
+      "compliance": "Hi Test Contact, A mutual contact suggested i reach out.\n\nQuick question based on your role as a lending leader.\n\nAs more automation and AI enter underwriting workflows, how is regional bank handling auditability around financial decisions?\n\nMost processes still don\u2019t leave a clear trail showing how numbers were verified.\n\nI\u2019ve been working on a lightweight system that logs each check with supporting evidence and flags inconsistencies automatically.\n\nI\u2019d be interested to hear how your team is thinking about that.",
+      "efficiency": "Hi Test Contact, A mutual contact suggested i reach out.\n\nI\u2019ve been speaking with lending teams about how much time still goes into double-checking calculations like DSCR, income, and DTI.\n\nA lot of that process is still manual.\n\nI built a lightweight system that recomputes key metrics and flags inconsistencies automatically, so teams don\u2019t have to re-check everything themselves.\n\nGiven your role as a lending leader, I was curious whether your team has looked at streamlining that process."
+    },
+    "selected_outreach": "Hi Test Contact, A mutual contact suggested i reach out.\n\nI\u2019ve been speaking with teams at regional bank about how key financial metrics like DSCR and income are verified.\n\nOne thing that keeps coming up is that reported numbers often aren\u2019t independently re-checked.\n\nIn one case, a DSCR was reported as 1.42 but recalculated closer to 1.18 \u2014 something that could have easily passed through.\n\nGiven your role as a lending leader, I was curious how your team currently catches issues like that.",
+    "follow_ups": {
+      "follow_up_1": "Hi Test Contact,\n\nWanted to circle back on this \u2014 I\u2019m speaking with a few teams about how financial checks like DSCR are being verified.\n\nCurious if this is something your team has already dialed in, or if inconsistencies still slip through occasionally.",
+      "follow_up_2": "Hi Test Contact,\n\nFollowing up one last time \u2014 I\u2019ve seen a few cases recently where small calculation mismatches (like DSCR) made it all the way through review.\n\nIt\u2019s a small issue until it isn\u2019t, which is why I\u2019ve been digging into how teams are handling verification.\n\nIf it\u2019s relevant, happy to share what I\u2019ve been seeing."
+    },
+    "verification_status": "no_belief_found",
+    "verification_notes": "No belief was attached for verification.",
+    "generated_outreach": "Hi Test Contact, A mutual contact suggested i reach out.\n\nI\u2019ve been speaking with teams at regional bank about how key financial metrics like DSCR and income are verified.\n\nOne thing that keeps coming up is that reported numbers often aren\u2019t independently re-checked.\n\nIn one case, a DSCR was reported as 1.42 but recalculated closer to 1.18 \u2014 something that could have easily passed through.\n\nGiven your role as a lending leader, I was curious how your team currently catches issues like that.",
+    "generated_follow_ups": {
+      "follow_up_1": "Hi Test Contact,\n\nWanted to circle back on this \u2014 I\u2019m speaking with a few teams about how financial checks like DSCR are being verified.\n\nCurious if this is something your team has already dialed in, or if inconsistencies still slip through occasionally.",
+      "follow_up_2": "Hi Test Contact,\n\nFollowing up one last time \u2014 I\u2019ve seen a few cases recently where small calculation mismatches (like DSCR) made it all the way through review.\n\nIt\u2019s a small issue until it isn\u2019t, which is why I\u2019ve been digging into how teams are handling verification.\n\nIf it\u2019s relevant, happy to share what I\u2019ve been seeing."
+    }
+  }
+]
