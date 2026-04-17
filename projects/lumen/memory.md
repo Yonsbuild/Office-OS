@@ -3,33 +3,33 @@
 # Lumen — Memory
 
 ## Vision
-Financial verification product that automatically detects calculation errors and inconsistencies in lending workflows. Success means providing lenders with confidence-scored, audit-ready verification outputs that prevent bad lending decisions and reduce risk exposure.
+Financial verification product — catches calculation errors (DSCR, income, DTI) in lending workflows before they reach credit committee. Fastest path to revenue. Long-term expands into underwriting QA, internal audit tooling, compliance logging, and decision audit trails.
 
 ## Current Milestone
-Expand Lumen beyond DSCR verification to handle multi-document financial statement analysis across income, debt-to-income, and cash flow calculations.
+Core checks working at CLI level. No UI, no ingestion pipeline. Product catches materially important errors but is not yet packaged for delivery.
 
 ## Active Offer
-Pilot verification service for regional banks: automated DSCR, income, and DTI verification with confidence scoring and audit trail logging. Target: community and regional banks processing 50+ applications monthly. Pricing: founder to define.
+"Run your memo through this before submission" — positioned as a personal risk shield for loan officers and underwriters. Framing: "I help you not look wrong in front of credit committee."
 
 ## Positioning
-The verification engine that catches what humans and spreadsheets miss. Automated second-pass validation that produces defensible, logged outputs for high-stakes lending decisions.
+Not "AI credit tool." Instead: personal risk shield for underwriters and loan officers. Sell to individuals who feel pain immediately, not institutions that move slow.
 
 ## Backlog
-- Define core value proposition
-- Identify first target segment
-- Document product capabilities
-- Expand to multi-document financial statement analysis
-- Build integration pathway for lending platforms
-- Establish confidence scoring calibration standards
+- Package CLI into deliverable format
+- Build simple ingestion pipeline
+- Create demo flow for loan officer audience
+- Document proof points from existing error catches
+- Explore accountant/bookkeeper channel
 
 ## Queue
 <!-- Founder populates after reviewing backlog -->
 
 ## Blockers
-- Memory file needs founder input to populate real context | severity: critical | owner: founder
+- Privacy objections blocking demos | severity: high | owner: founder
+- Product not packaged — CLI only, no UI | severity: high | owner: founder
 
 ## Context Window
-Awaiting founder input. Agent should not execute until this section is populated.
+Lumen is the entry point for revenue. Office OS sales engine should drive Lumen adoption. Go-to-market is bottom-up: loan officers first, then expand upward into institutions.
 
 ## Last Updated
-2026-04-17 by founder
+2026-04-17 12:00 by founder

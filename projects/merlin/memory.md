@@ -3,33 +3,33 @@
 # Merlin — Memory
 
 ## Vision
-Verification and credibility product that processes large volumes of documents, extracts facts, detects contradictions, and produces structured, defensible reports with full audit trails. Success means becoming the trust layer for high-stakes decision workflows across legal, compliance, and investigative domains.
+Not a legal AI assistant — a defensibility layer for legal AI workflows. Optimizes for liability, auditability, and trust rather than speed and UX. Long-term becomes API/middleware ("Merlin Verify") and standard for legal AI output verification. Category: AI Trust Infrastructure.
 
 ## Current Milestone
-Build multi-pass analysis system that reduces hallucinations and produces source-grounded, traceable reports for legal document review and contradiction detection.
+End-to-end pipeline exists (intake → analysis → verification → report). Phase 0 verification is strongest differentiator (quote checks, reference validation, hallucination scoring). Reanalysis bug and report path issue create a last-mile reliability gap. Demo-ready via Merlin Lite + Vercel frontend. Status: credible prototype with real-world logic, not production SaaS.
 
 ## Active Offer
-Pilot verification service for legal teams: multi-document analysis with contradiction detection, entity extraction, and audit trail logging. Target: mid-market law firms and compliance teams. Pricing: founder to define.
+Not selling "Merlin" broadly. Selling: case audit/verification pass, second-pass contradiction detection on active cases, risk exposure review (what breaks under cross-examination). Low friction, high credibility.
 
 ## Positioning
-The verification engine that lawyers and investigators trust because everything is traceable. Processes 100s of documents and hours of transcripts to surface contradictions and weak points that manual review misses.
+"We don't generate answers — we make them stand up in court." The wedge is that most tools optimize for speed + UX; Merlin optimizes for liability, auditability, and trust.
 
 ## Backlog
-- Define core verification methodology
-- Identify credibility signals and data sources
-- Document proof points for trust layer
-- Build document ingestion pipeline
-- Establish multi-pass analysis protocols
-- Create templated report generation
+- Fix reanalysis bug
+- Fix report path issue
+- Document Phase 0 verification methodology
+- Build case study from demo results
+- Explore cross-domain verification (beyond legal)
 
 ## Queue
 <!-- Founder populates after reviewing backlog -->
 
 ## Blockers
-- Memory file needs founder input to populate real context | severity: critical | owner: founder
+- Reanalysis bug + report path issue = last-mile reliability gap | severity: high | owner: agent
+- Risk of overbuilding before distribution | severity: medium | owner: founder
 
 ## Context Window
-Awaiting founder input. Agent should not execute until this section is populated.
+Merlin is the platform play (scale), not the entry point. Sequence is: Lumen gets revenue first, then repackage Merlin as API layer. Don't try to win legal tech — own the verification layer across domains.
 
 ## Last Updated
-2026-04-17 by founder
+2026-04-17 12:00 by founder

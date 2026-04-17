@@ -3,31 +3,33 @@
 # ShopTrack — Memory
 
 ## Vision
-[Founder to complete value proposition and success criteria for deployed product]
+Financial clarity layer for messy service businesses (auto shops). Not a shop tool — an accountant-facing wedge. Long-term becomes clean financial record system and EOY reporting engine. This is the boring cash generator, not the breakout.
 
 ## Current Milestone
-[Single sentence: what we are trying to accomplish right now]
+Core system exists — work orders, payments, audit logic (voiding, tracking). Bugs present: schema drift in Supabase, frontend inconsistencies. Closer to usable than other projects but weakest strategic pull right now.
 
 ## Active Offer
-[What is being sold/pitched, to whom, at what price point. Write "None yet" if not applicable]
+Sell through bookkeepers and accountants, not shops directly.
 
 ## Positioning
-[How this project is described to the outside world — the messaging anchor]
+"Financial clarity layer for messy service businesses." Accountant-facing wedge into auto shop market.
 
 ## Backlog
-- [Define core value proposition for deployed product]
-- [Identify current target market segment]
-- [Document active revenue streams and customer segments]
-- [Establish maintenance and support requirements]
+- Fix Supabase schema drift
+- Fix frontend inconsistencies
+- Identify first accountant/bookkeeper channel partner
+- Build EOY reporting feature
+- Document current system capabilities
 
 ## Queue
 <!-- Founder populates after reviewing backlog -->
 
 ## Blockers
-- Memory file needs founder input to populate real context | severity: critical | owner: founder
+- Schema drift in Supabase | severity: medium | owner: agent
+- Low urgency market — competes with inertia, not competitors | severity: medium | owner: founder
 
 ## Context Window
-Awaiting founder input. Agent should not execute until this section is populated.
+ShopTrack is optional cashflow. Lowest priority in the portfolio hierarchy. Only invest time here if it generates steady revenue without pulling focus from Lumen/Merlin.
 
 ## Last Updated
-2026-04-17 by founder
+2026-04-17 12:00 by founder

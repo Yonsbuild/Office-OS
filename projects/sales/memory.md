@@ -3,33 +3,35 @@
 # Sales — Memory
 
 ## Vision
-Outreach and pipeline engine that converts intent into qualified conversations and revenue. Success means building a self-operating sales system that generates consistent, high-quality leads and manages the full follow-up lifecycle without requiring constant founder reactivation.
+Outreach and pipeline engine that generates qualified conversations converting to revenue. Uses Office OS infrastructure to drive adoption of Lumen (primary) and Merlin (secondary).
 
 ## Current Milestone
-Establish repeatable outreach process targeting regional and community banks with Lumen verification capabilities, manage 2+ leads through multi-touch follow-up sequences.
+Queue and outreach generation partially wired. Missing real send layer, real lead ingestion, and response handling feedback loop. Current system can simulate work but not produce outcomes. Autonomy score from production audit: 11/100.
 
 ## Active Offer
-Lumen pilot: automated financial verification (DSCR, income, DTI) with confidence scoring and audit trail. Target: regional banks with 50+ monthly applications. Pricing: founder to define.
+Founder to define — depends on which product is being pushed through the pipeline.
 
 ## Positioning
-Verification-first outreach: we don't pitch features—we pitch risk reduction and compliance confidence. Messaging anchors on three angles: risk exposure, operational efficiency, and audit defensibility.
+Sales is the discovery engine, not just execution. All sales activity feeds back into product improvements, messaging refinement, and targeting precision.
 
 ## Backlog
-- Define ideal customer profile
+- Define ideal customer profile (loan officers for Lumen)
 - Establish outreach channel strategy
 - Build lead scoring criteria
-- Develop multi-angle messaging framework (risk, efficiency, compliance)
-- Create follow-up sequence templates
-- Establish reply rate and conversion tracking
+- Integrate real send layer (SMTP/SendGrid)
+- Build reply detection
+- Close the feedback loop (responses → messaging iteration)
 
 ## Queue
 <!-- Founder populates after reviewing backlog -->
 
 ## Blockers
-- Memory file needs founder input to populate real context | severity: critical | owner: founder
+- No execution layer — system generates messages but cannot send them | severity: critical | owner: agent
+- No lead sourcing — leads are manually entered into JSON | severity: critical | owner: agent
+- No reply detection — no inbox monitoring | severity: critical | owner: agent
 
 ## Context Window
-Awaiting founder input. Agent should not execute until this section is populated.
+Sales exists to drive Lumen adoption first. The three critical integrations (send, source, detect) are the minimum fix set from the production audit. Until these work, the sales engine is a simulation.
 
 ## Last Updated
-2026-04-17 by founder
+2026-04-17 12:00 by founder
