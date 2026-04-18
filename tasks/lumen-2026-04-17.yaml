@@ -62,14 +62,23 @@ tasks:
   priority: 4
   notes: 'Maps to backlog item: Document proof points from existing error catches.
     Used in sales materials and positioning.'
-- id: "lumen-005"
-  project: "lumen"
-  description: "Inspect the Lumen codebase at its code path. Read README, recent git log (last 10 commits), directory structure (top 2 levels), any status or progress docs, and key source files (app.py, flask_app.py, generator modules). Update projects/lumen/memory.md with accurate Vision, Current Milestone, Context Window, and any new Blockers or Backlog items based on what actually exists in the code. Do not add aspirational features that aren't evidenced in the code. Preserve existing strategic framing."
-  acceptance_criteria: "Vision reflects real current capabilities. Current Milestone reflects actual development state with specific evidence. Context Window includes tech stack, deployment status, and last commit date. Any new blockers or backlog items are grounded in codebase findings."
+- id: lumen-005
+  project: lumen
+  description: Inspect the Lumen codebase at its code path. Read README, recent git
+    log (last 10 commits), directory structure (top 2 levels), any status or progress
+    docs, and key source files (app.py, flask_app.py, generator modules). Update projects/lumen/memory.md
+    with accurate Vision, Current Milestone, Context Window, and any new Blockers
+    or Backlog items based on what actually exists in the code. Do not add aspirational
+    features that aren't evidenced in the code. Preserve existing strategic framing.
+  acceptance_criteria: Vision reflects real current capabilities. Current Milestone
+    reflects actual development state with specific evidence. Context Window includes
+    tech stack, deployment status, and last commit date. Any new blockers or backlog
+    items are grounded in codebase findings.
   estimated_minutes: 30
-  status: "open"
+  status: blocked
   depends_on: null
-  created_by: "founder"
-  priority: 1
-  complexity: "low"
-  notes: "Read-only inspection of project code. Only modify memory.md in office-os repo. Do not touch project source code."
+  created_by: founder
+  priority: 0
+  complexity: low
+  notes: Read-only inspection of project code. Only modify memory.md in office-os
+    repo. Do not touch project source code.
