@@ -14,7 +14,7 @@ projects:
     memory: projects/lumen/memory.md
     decisions: projects/lumen/decisions.md
     tasks_prefix: "lumen"
-    code: ~/lumen
+    code: ~/Lumen-Credit-Memo
     validation:
       - "echo 'No test suite configured — manual review required'"
     branch_prefix: "agent/lumen"
@@ -23,7 +23,7 @@ projects:
     memory: projects/merlin/memory.md
     decisions: projects/merlin/decisions.md
     tasks_prefix: "merlin"
-    code: ~/merlin
+    code: ~/Merlin-Engine-2026
     validation:
       - "echo 'No test suite configured — manual review required'"
     branch_prefix: "agent/merlin"
@@ -40,7 +40,7 @@ projects:
     memory: projects/shoptrack/memory.md
     decisions: projects/shoptrack/decisions.md
     tasks_prefix: "shoptrack"
-    code: ~/shoptrack
+    code: ~/ShopTrack
     validation:
       - "echo 'No test suite configured — manual review required'"
     branch_prefix: "agent/shoptrack"
