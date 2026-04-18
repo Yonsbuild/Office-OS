@@ -1,0 +1,50 @@
+# shoptrack-2026-04-17.yaml
+# Task queue for ShopTrack
+# Priority: lower number = higher priority
+# Status: open | in-progress | done | blocked | skipped
+# Created by: founder | agent | manager
+
+tasks:
+  - id: "shoptrack-001"
+    project: "shoptrack"
+    description: "Fix Supabase schema drift. Current schema in production database does not match expected schema for work orders, payments, and audit logic. Identify discrepancies and apply migrations to align schema. Ensure voiding and payment tracking tables are consistent."
+    acceptance_criteria: "Schema matches definition in code. Work orders, payments, and audit tables have correct columns and types. Migrations can be applied without data loss. No duplicate or missing columns."
+    estimated_minutes: 60
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 1
+    notes: "Medium severity blocker from memory.md. Maps to backlog: Fix Supabase schema drift. Enables stable operations."
+
+  - id: "shoptrack-002"
+    project: "shoptrack"
+    description: "Fix frontend inconsistencies. UI displays incorrect data or behaves inconsistently across different states. Fix rendering bugs, state management issues, and display logic. Ensure work order form, payment entry, and audit view all render correctly."
+    acceptance_criteria: "Frontend displays consistent data across all views. Form submissions work reliably. Work order and payment data display correctly. No console errors or broken layouts."
+    estimated_minutes: 60
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 2
+    notes: "Maps to backlog: Fix frontend inconsistencies. Improves user experience for accountant users."
+
+  - id: "shoptrack-003"
+    project: "shoptrack"
+    description: "Document current system capabilities. ShopTrack has core functionality (work orders, payments, audit logic) but is not well documented. Create clear documentation of what the system does, how to use it, limitations, and data model. This is preparation for channel partner conversation."
+    acceptance_criteria: "Documentation covers all current features. Explains work order lifecycle, payment tracking, and audit functionality. Includes use cases and limitations. Can be shared with potential accountant partners."
+    estimated_minutes: 45
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 3
+    notes: "Maps to backlog: Document current system capabilities. Foundation for market exploration."
+
+  - id: "shoptrack-004"
+    project: "shoptrack"
+    description: "Identify first accountant/bookkeeper channel partner. Research local accountants and bookkeepers who serve auto shops and similar service businesses. Compile target list of 5-10 potential partners. Qualify based on: client overlap with auto shops, openness to new tools, capacity to recommend solutions."
+    acceptance_criteria: "Target list of 5-10 accountants/bookkeepers with contact information. Each prospect has qualification notes (why they are good fit, their shop clients, etc.). List is prioritized by fit."
+    estimated_minutes: 30
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 4
+    notes: "Maps to backlog: Identify first accountant/bookkeeper channel partner. Maintenance-level priority. Opens distribution path."

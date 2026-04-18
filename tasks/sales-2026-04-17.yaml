@@ -1,0 +1,50 @@
+# sales-2026-04-17.yaml
+# Task queue for Sales
+# Priority: lower number = higher priority
+# Status: open | in-progress | done | blocked | skipped
+# Created by: founder | agent | manager
+
+tasks:
+  - id: "sales-001"
+    project: "sales"
+    description: "Define ideal customer profile (ICP) for Lumen outreach and establish lead sourcing criteria. Create buyer persona for loan officers (income requirements, institution size, pain points). Build lead scoring matrix to prioritize prospects. Establish data sources for lead sourcing (LinkedIn, industry directories, professional networks)."
+    acceptance_criteria: "ICP document defines target buyer with specific criteria. Lead scoring matrix exists with weighted criteria. Data sources identified and evaluated. Can be used to generate/score leads programmatically."
+    estimated_minutes: 60
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 1
+    notes: "Maps to backlog items: Define ideal customer profile + Establish outreach channel strategy. Foundation for lead sourcing task."
+
+  - id: "sales-002"
+    project: "sales"
+    description: "Integrate real send layer (SMTP/SendGrid) to replace message simulation. Current system generates outreach messages but cannot send them. Implement email sending infrastructure with delivery tracking, bounce handling, and rate limiting. Connect to existing message generation pipeline."
+    acceptance_criteria: "System can send real emails through SendGrid or SMTP. Delivery status tracked. Bounces handled gracefully. Rate limiting prevents sending too fast. Messages sent correspond to queued outreach."
+    estimated_minutes: 75
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 2
+    notes: "ESCALATION REQUIRED: founder approval needed before any external send. Critical blocker from memory.md: No execution layer — system generates messages but cannot send them."
+
+  - id: "sales-003"
+    project: "sales"
+    description: "Build reply detection infrastructure for inbox monitoring. System must detect responses to outreach emails, extract them from inbox, and route responses back to queue for follow-up handling. Implement email parsing to extract contact name, company, and sentiment/intent from replies."
+    acceptance_criteria: "System connects to inbox (Gmail/Outlook API or IMAP). Detects replies to sent outreach. Extracts sender and reply content. Routes to follow-up queue. Handles at least 85% of reply formats correctly."
+    estimated_minutes: 75
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 3
+    notes: "Critical blocker from memory.md: No reply detection — no inbox monitoring. Closes feedback loop for pipeline."
+
+  - id: "sales-004"
+    project: "sales"
+    description: "Establish outreach channel strategy. Beyond email, identify 1-2 additional channels (LinkedIn messages, phone, industry forums) for reaching loan officers. Document channel-specific messaging (email vs LinkedIn tone/format differ). Build channel selection logic into outreach pipeline."
+    acceptance_criteria: "Channel strategy document defines 2-3 channels with outreach approach for each. Channel-specific message templates exist. Pipeline can route to multiple channels based on contact profile."
+    estimated_minutes: 45
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 4
+    notes: "Maps to backlog item: Establish outreach channel strategy. Expands reach beyond email only."

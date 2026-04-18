@@ -1,0 +1,50 @@
+# merlin-2026-04-17.yaml
+# Task queue for Merlin
+# Priority: lower number = higher priority
+# Status: open | in-progress | done | blocked | skipped
+# Created by: founder | agent | manager
+
+tasks:
+  - id: "merlin-001"
+    project: "merlin"
+    description: "Fix reanalysis bug in verification pipeline. Current issue: when a case undergoes reanalysis, results are not properly updated or stored. Debug root cause, implement fix, and ensure reanalysis triggers correctly and stores final results. This is a critical blocker for production reliability."
+    acceptance_criteria: "Reanalysis executes without error. Results are correctly stored and retrievable. Test case shows reanalysis output differs correctly from initial analysis when case status changes. No duplicate or orphaned records created."
+    estimated_minutes: 75
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 1
+    notes: "High severity blocker from memory.md. Maps to backlog: Fix reanalysis bug. Blocks demo-ready status."
+
+  - id: "merlin-002"
+    project: "merlin"
+    description: "Fix report path issue in output generation. Current issue: reports are not being written to correct directory or paths are being constructed incorrectly. Debug path logic, implement fix, ensure reports are generated and accessible from expected locations. This completes the last-mile reliability gap."
+    acceptance_criteria: "Report generation completes without path errors. Reports are written to correct directories. Report paths are accessible and can be retrieved. Test covers at least 3 different output scenarios."
+    estimated_minutes: 60
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 2
+    notes: "High severity blocker from memory.md. Maps to backlog: Fix report path issue. Unblocks demo readiness."
+
+  - id: "merlin-003"
+    project: "merlin"
+    description: "Document Phase 0 verification methodology. Merlin's strongest differentiator is Phase 0 verification (quote checks, reference validation, hallucination scoring). Create detailed methodology document explaining approach, rules, scoring logic, and why it detects the errors other tools miss."
+    acceptance_criteria: "Document explains Phase 0 methodology clearly enough for non-technical stakeholders to understand. Includes examples of errors caught by Phase 0. Technical foundation explained without requiring AI/ML background."
+    estimated_minutes: 60
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 3
+    notes: "Maps to backlog: Document Phase 0 verification methodology. Used in positioning and education."
+
+  - id: "merlin-004"
+    project: "merlin"
+    description: "Build case study from demo results. Using Merlin Lite + Vercel frontend, document a realistic legal case audit showing Merlin catching contradictions, hallucinations, or missing references. Include before/after analysis and what risks were identified."
+    acceptance_criteria: "Case study document exists with realistic example. Shows specific errors/risks Merlin caught. Explains why those risks matter in court. Can be used in outreach and credibility building."
+    estimated_minutes: 60
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 4
+    notes: "Maps to backlog: Build case study from demo results. Credibility building for market entry."

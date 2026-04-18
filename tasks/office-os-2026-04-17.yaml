@@ -1,0 +1,39 @@
+# office-os-2026-04-17.yaml
+# Task queue for Office OS
+# Priority: lower number = higher priority
+# Status: open | in-progress | done | blocked | skipped
+# Created by: founder | agent | manager
+
+tasks:
+  - id: "office-os-001"
+    project: "office-os"
+    description: "Create decisions.md files for all five projects (lumen, merlin, sales, shoptrack, office-os) using structured template with clear decision logging format. Template should include: decision context, options considered, chosen option, rationale, and date."
+    acceptance_criteria: "All five decisions.md files exist in /projects/[project]/ with consistent structure. Files are tracked in git. Template allows agent to log decisions made during task execution."
+    estimated_minutes: 45
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 1
+    notes: "Foundation task. Must complete before agent.py build so agent can log decisions during execution."
+
+  - id: "office-os-002"
+    project: "office-os"
+    description: "Build agent.py CLI wrapper that orchestrates task execution across all projects. Should parse task files, execute tasks in dependency order, capture decision logging, and update task status. Must interface with the task YAML queue format."
+    acceptance_criteria: "agent.py can be executed from CLI, reads from /tasks/ directory, processes dependencies, updates task status to in-progress and done, writes decision logs to decisions.md."
+    estimated_minutes: 75
+    status: "open"
+    depends_on: "office-os-001"
+    created_by: "founder"
+    priority: 2
+    notes: "Build plan step 5. Depends on decisions.md scaffolding being in place."
+
+  - id: "office-os-003"
+    project: "office-os"
+    description: "Build verify.py post-run checks that validate task completion. Should read completed task files and brief outputs, verify acceptance criteria were met, flag any incomplete or blocked tasks, generate summary report."
+    acceptance_criteria: "verify.py can be executed post-run, validates all completed tasks against acceptance criteria, generates report showing verification results, identifies any tasks that need re-work."
+    estimated_minutes: 60
+    status: "open"
+    depends_on: "office-os-002"
+    created_by: "founder"
+    priority: 3
+    notes: "Build plan step 6. Depends on agent.py being functional. Part of quality gate system."

@@ -1,0 +1,26 @@
+# TASK QUEUE TEMPLATE
+# Copy this file to /tasks/[project-name]-YYYY-MM-DD.yaml
+#
+# Fields:
+#   id: unique identifier, format "[project]-[number]" (e.g., "lumen-001")
+#   project: project name matching /projects/[name]/
+#   description: what to do — must be specific enough to act on without clarification
+#   acceptance_criteria: how to verify this task is done — measurable, not subjective
+#   estimated_minutes: max 90 — if longer, decompose into smaller tasks
+#   status: open | in-progress | done | blocked | skipped
+#   depends_on: null, or the id of a task that must complete first
+#   created_by: founder | agent | manager
+#   priority: integer, lower = higher priority. 1 is highest.
+#   notes: additional context, constraints, or references
+
+tasks:
+  - id: "[project]-001"
+    project: "[project-name]"
+    description: "[What to do — specific and actionable]"
+    acceptance_criteria: "[How to know it's done]"
+    estimated_minutes: 60
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 1
+    notes: ""
