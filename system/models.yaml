@@ -1,0 +1,38 @@
+# Model Configuration
+# The agent uses two tiers to balance cost and quality.
+# Default pairing should cross provider boundaries for reasoning diversity:
+#   - If cheap tier is Anthropic, expensive tier should be OpenAI (and vice versa)
+#   - This reduces shared failure modes when escalating
+#
+# Override: if a task includes a provider_hint in its notes field,
+# the agent may use that provider regardless of tier.
+
+tiers:
+  cheap:
+    provider: "anthropic"
+    model: "claude-haiku-4-5-20251001"
+    max_tokens: 4096
+    description: "Default for low-complexity tasks: file creation, doc updates, scaffolding, straightforward fixes"
+
+  expensive:
+    provider: "openai"
+    model: "gpt-4o"
+    max_tokens: 4096
+    description: "For high-complexity tasks: multi-file debugging, business logic, refactoring, subagent review"
+
+# API keys are read from environment variables:
+#   ANTHROPIC_API_KEY
+#   OPENAI_API_KEY
+#
+# To swap the pairing (e.g., OpenAI cheap + Anthropic expensive):
+#   cheap:
+#     provider: "openai"
+#     model: "gpt-4o-mini"
+#   expensive:
+#     provider: "anthropic"
+#     model: "claude-sonnet-4-20250514"
+#
+# COST GUIDANCE (approximate, at nightly frequency):
+#   - 3-5 tasks/night mostly on cheap tier: $0.10-0.30/night
+#   - Occasional expensive tier for failures/complex tasks: $0.50-0.70/night
+#   - Target: under $1/day

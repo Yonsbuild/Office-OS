@@ -11,6 +11,10 @@
 #   depends_on: null, or the id of a task that must complete first
 #   created_by: founder | agent | manager
 #   priority: integer, lower = higher priority. 1 is highest.
+#   complexity: low | high — determines which model tier handles this task.
+#               low = cheap model (file creation, docs, straightforward fixes)
+#               high = expensive model (multi-file debugging, refactoring, business logic)
+#               Default to low. Only mark high if the task requires complex reasoning.
 #   notes: additional context, constraints, or references
 
 tasks:
@@ -23,4 +27,5 @@ tasks:
     depends_on: null
     created_by: "founder"
     priority: 1
+    complexity: "low"
     notes: ""

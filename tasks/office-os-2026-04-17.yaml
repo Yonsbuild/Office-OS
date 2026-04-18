@@ -21,7 +21,7 @@ tasks:
     description: "Build agent.py CLI wrapper that orchestrates task execution across all projects. Should parse task files, execute tasks in dependency order, capture decision logging, and update task status. Must interface with the task YAML queue format."
     acceptance_criteria: "agent.py can be executed from CLI, reads from /tasks/ directory, processes dependencies, updates task status to in-progress and done, writes decision logs to decisions.md."
     estimated_minutes: 75
-    status: "open"
+    status: "done"
     depends_on: "office-os-001"
     created_by: "founder"
     priority: 2
