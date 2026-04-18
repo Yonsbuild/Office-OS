@@ -141,7 +141,9 @@ def load_tasks(config, project_name):
             print(f"WARNING: Failed to load {task_file}: {e}", file=sys.stderr)
 
     # Sort by priority (lower = higher), then by order in file
-    all_tasks.sort(key=lambda t: (t.get("priority", 999), all_tasks.index(t)))
+    indexed_tasks = [(i, t) for i, t in enumerate(all_tasks)]
+    indexed_tasks.sort(key=lambda x: (x[1].get("priority", 999), x[0]))
+    all_tasks = [t for _, t in indexed_tasks]
     return all_tasks
 
 
