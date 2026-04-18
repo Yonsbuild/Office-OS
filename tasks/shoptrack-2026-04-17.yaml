@@ -48,3 +48,15 @@ tasks:
     created_by: "founder"
     priority: 4
     notes: "Maps to backlog: Identify first accountant/bookkeeper channel partner. Maintenance-level priority. Opens distribution path."
+
+  - id: "shoptrack-005"
+    project: "shoptrack"
+    description: "Inspect the ShopTrack codebase at its code path. Read README, recent git log (last 10 commits), directory structure (top 2 levels), package.json for both backend and frontend, any deployment configs, and HARDENING_CHECKLIST.md. Update projects/shoptrack/memory.md with accurate Vision, Current Milestone, Context Window, and any new Blockers or Backlog items based on what actually exists in the code. Specifically look for the Supabase schema drift referenced in existing blockers — confirm if it still exists. Do not add aspirational features that aren't evidenced in the code. Preserve existing strategic framing."
+    acceptance_criteria: "Vision reflects real current capabilities. Current Milestone reflects actual development state with specific evidence. Context Window includes tech stack, deployment status, and last commit date. Supabase schema drift status confirmed from code inspection."
+    estimated_minutes: 30
+    status: "open"
+    depends_on: null
+    created_by: "founder"
+    priority: 1
+    complexity: "low"
+    notes: "Read-only inspection of project code. Only modify memory.md in office-os repo. Do not touch project source code."

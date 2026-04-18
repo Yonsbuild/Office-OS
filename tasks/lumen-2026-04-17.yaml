@@ -1,50 +1,75 @@
-# lumen-2026-04-17.yaml
-# Task queue for Lumen
-# Priority: lower number = higher priority
-# Status: open | in-progress | done | blocked | skipped
-# Created by: founder | agent | manager
-
 tasks:
-  - id: "lumen-001"
-    project: "lumen"
-    description: "Package CLI tool into deliverable format. Current system runs checks at CLI level only. Create distribution package that loan officers and underwriters can install and use without developer setup. Include basic UI or CLI wrapper that makes tool accessible to non-technical users."
-    acceptance_criteria: "Deliverable package can be installed by non-developers. Tool runs core DSCR, income, and DTI checks without requiring Python environment setup. Quick start guide exists."
-    estimated_minutes: 75
-    status: "open"
-    depends_on: null
-    created_by: "founder"
-    priority: 1
-    notes: "Blocks demo work and revenue path. Maps to backlog item: Package CLI into deliverable format. Unblocks lumen-003."
-
-  - id: "lumen-002"
-    project: "lumen"
-    description: "Build simple ingestion pipeline that accepts loan memo documents (PDF or text) and routes them to verification checks. Pipeline should extract relevant financial data, pass to verification engine, and return results. Must handle common memo formats used by lending institutions."
-    acceptance_criteria: "Pipeline accepts common loan memo formats. Extracts DSCR, income, DTI data automatically. Returns structured verification results. Handles at least 80% of test memo formats without manual extraction."
-    estimated_minutes: 75
-    status: "open"
-    depends_on: null
-    created_by: "founder"
-    priority: 2
-    notes: "Maps to backlog item: Build simple ingestion pipeline. Enables production-like workflow."
-
-  - id: "lumen-003"
-    project: "lumen"
-    description: "Create demo flow optimized for loan officer audience. Flow should demonstrate Lumen catching calculation errors (DSCR, income, DTI) that would reach credit committee. Use real error examples from past catches. Frame as personal risk shield, not technical audit tool."
-    acceptance_criteria: "Demo script exists and can be executed in 10-15 minutes. Shows 2-3 real error catches. Loan officer can understand value proposition without technical explanation. Demo runs without external dependencies."
-    estimated_minutes: 60
-    status: "open"
-    depends_on: "lumen-001"
-    created_by: "founder"
-    priority: 3
-    notes: "Unblocks go-to-market testing. Depends on packaged deliverable from lumen-001."
-
-  - id: "lumen-004"
-    project: "lumen"
-    description: "Document proof points from existing error catches. Review past Lumen verifications and extract cases where tool caught material calculation errors. Organize by error type (DSCR, income, DTI) with impact descriptions (e.g., error would have caused credit committee flag, risk to approval)."
-    acceptance_criteria: "Document contains 3-5 concrete error examples with before/after impact. Each example clearly shows what error was caught and why it matters to loan officer. Examples are anonymized but specific."
-    estimated_minutes: 45
-    status: "open"
-    depends_on: null
-    created_by: "founder"
-    priority: 4
-    notes: "Maps to backlog item: Document proof points from existing error catches. Used in sales materials and positioning."
+- id: lumen-001
+  project: lumen
+  description: Package CLI tool into deliverable format. Current system runs checks
+    at CLI level only. Create distribution package that loan officers and underwriters
+    can install and use without developer setup. Include basic UI or CLI wrapper that
+    makes tool accessible to non-technical users.
+  acceptance_criteria: Deliverable package can be installed by non-developers. Tool
+    runs core DSCR, income, and DTI checks without requiring Python environment setup.
+    Quick start guide exists.
+  estimated_minutes: 75
+  status: open
+  depends_on: null
+  created_by: founder
+  priority: 1
+  notes: 'Blocks demo work and revenue path. Maps to backlog item: Package CLI into
+    deliverable format. Unblocks lumen-003.'
+- id: lumen-002
+  project: lumen
+  description: Build simple ingestion pipeline that accepts loan memo documents (PDF
+    or text) and routes them to verification checks. Pipeline should extract relevant
+    financial data, pass to verification engine, and return results. Must handle common
+    memo formats used by lending institutions.
+  acceptance_criteria: Pipeline accepts common loan memo formats. Extracts DSCR, income,
+    DTI data automatically. Returns structured verification results. Handles at least
+    80% of test memo formats without manual extraction.
+  estimated_minutes: 75
+  status: open
+  depends_on: null
+  created_by: founder
+  priority: 2
+  notes: 'Maps to backlog item: Build simple ingestion pipeline. Enables production-like
+    workflow.'
+- id: lumen-003
+  project: lumen
+  description: Create demo flow optimized for loan officer audience. Flow should demonstrate
+    Lumen catching calculation errors (DSCR, income, DTI) that would reach credit
+    committee. Use real error examples from past catches. Frame as personal risk shield,
+    not technical audit tool.
+  acceptance_criteria: Demo script exists and can be executed in 10-15 minutes. Shows
+    2-3 real error catches. Loan officer can understand value proposition without
+    technical explanation. Demo runs without external dependencies.
+  estimated_minutes: 60
+  status: open
+  depends_on: lumen-001
+  created_by: founder
+  priority: 3
+  notes: Unblocks go-to-market testing. Depends on packaged deliverable from lumen-001.
+- id: lumen-004
+  project: lumen
+  description: Document proof points from existing error catches. Review past Lumen
+    verifications and extract cases where tool caught material calculation errors.
+    Organize by error type (DSCR, income, DTI) with impact descriptions (e.g., error
+    would have caused credit committee flag, risk to approval).
+  acceptance_criteria: Document contains 3-5 concrete error examples with before/after
+    impact. Each example clearly shows what error was caught and why it matters to
+    loan officer. Examples are anonymized but specific.
+  estimated_minutes: 45
+  status: open
+  depends_on: null
+  created_by: founder
+  priority: 4
+  notes: 'Maps to backlog item: Document proof points from existing error catches.
+    Used in sales materials and positioning.'
+- id: "lumen-005"
+  project: "lumen"
+  description: "Inspect the Lumen codebase at its code path. Read README, recent git log (last 10 commits), directory structure (top 2 levels), any status or progress docs, and key source files (app.py, flask_app.py, generator modules). Update projects/lumen/memory.md with accurate Vision, Current Milestone, Context Window, and any new Blockers or Backlog items based on what actually exists in the code. Do not add aspirational features that aren't evidenced in the code. Preserve existing strategic framing."
+  acceptance_criteria: "Vision reflects real current capabilities. Current Milestone reflects actual development state with specific evidence. Context Window includes tech stack, deployment status, and last commit date. Any new blockers or backlog items are grounded in codebase findings."
+  estimated_minutes: 30
+  status: "open"
+  depends_on: null
+  created_by: "founder"
+  priority: 1
+  complexity: "low"
+  notes: "Read-only inspection of project code. Only modify memory.md in office-os repo. Do not touch project source code."
