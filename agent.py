@@ -901,12 +901,15 @@ def execute_task(task, project_name, config, system_files, dry_run=False):
         # 2. Select model
         model_info = select_model(task, config["models"])
 
-        # 3. Git operations (if code task)
+        # 3. Check if task is read-only
+        is_readonly = "read-only" in task.get("notes", "").lower()
+
+        # 4. Git operations (if code task and not read-only)
         checkpoint_hash = None
         branch_name = None
         pre_validation = None
 
-        if code_path and code_path.exists():
+        if code_path and code_path.exists() and not is_readonly:
             stash = ensure_clean_tree(code_path)
             if dry_run:
                 print(f"[DRY-RUN] Would ensure clean tree: {stash}")
@@ -1011,68 +1014,69 @@ content
                 update_memory(config, project_name, task_id, "blocked", "file write error")
                 return result
 
-            # 7. Validate changes
-            validation_cmds = project_config.get("validation", [])
-            post_validation = run_validation(code_path, validation_cmds)
+            # 7. Validate changes (skip for read-only tasks)
+            if not is_readonly:
+                validation_cmds = project_config.get("validation", [])
+                post_validation = run_validation(code_path, validation_cmds)
 
-            if pre_validation and not post_validation["passed"] and not post_validation["is_placeholder"]:
-                # Compare with baseline
-                comparison = compare_validation(pre_validation["output"], post_validation["output"])
+                if pre_validation and not post_validation["passed"] and not post_validation["is_placeholder"]:
+                    # Compare with baseline
+                    comparison = compare_validation(pre_validation["output"], post_validation["output"])
 
-                if comparison["new_failures"]:
-                    # FAILURE CASCADE triggered
-                    log_action(config, project_name, task_id, "validation", "FAILED")
+                    if comparison["new_failures"]:
+                        # FAILURE CASCADE triggered
+                        log_action(config, project_name, task_id, "validation", "FAILED")
 
-                    # Get diff for incident log
-                    diff = get_diff_since_checkpoint(code_path, checkpoint_hash)
-                    incident_msg = f"Validation failed with new errors. Files changed: {', '.join(changed_files)}"
-                    log_incident(config, project_name, task_id, changed_files,
-                               task.get("description", ""), comparison["details"], diff)
-
-                    # Assess blast radius
-                    radius = assess_blast_radius(comparison["details"])
-
-                    if radius == "cascading":
-                        # Escalate immediately without recovery attempt
-                        result["status"] = "blocked"
-                        result["error"] = "cascading_failure"
-                        revert_to_checkpoint(code_path, checkpoint_hash)
-                        log_decision(config, project_name, task_id, "assess_blast_radius",
-                                   "determine failure scope", "contained recovery attempt", "escalated",
-                                   incident=incident_msg)
-                        update_memory(config, project_name, task_id, "blocked", incident_msg)
-                        return result
-
-                    # Attempt recovery (contained failures only)
-                    recovery = attempt_recovery(code_path, task, comparison["details"], config, system_files)
-
-                    if not recovery["success"]:
-                        # Recovery failed - revert to checkpoint
-                        revert_to_checkpoint(code_path, checkpoint_hash)
-
-                        # Get updated diff for subagent review
+                        # Get diff for incident log
                         diff = get_diff_since_checkpoint(code_path, checkpoint_hash)
+                        incident_msg = f"Validation failed with new errors. Files changed: {', '.join(changed_files)}"
+                        log_incident(config, project_name, task_id, changed_files,
+                                   task.get("description", ""), comparison["details"], diff)
 
-                        # Run subagent review
-                        subagent_rec = run_subagent_review(task, diff, comparison["details"],
-                                                          incident_msg, config, system_files)
+                        # Assess blast radius
+                        radius = assess_blast_radius(comparison["details"])
 
-                        result["status"] = "blocked"
-                        result["error"] = f"recovery_failed-{subagent_rec}"
+                        if radius == "cascading":
+                            # Escalate immediately without recovery attempt
+                            result["status"] = "blocked"
+                            result["error"] = "cascading_failure"
+                            revert_to_checkpoint(code_path, checkpoint_hash)
+                            log_decision(config, project_name, task_id, "assess_blast_radius",
+                                       "determine failure scope", "contained recovery attempt", "escalated",
+                                       incident=incident_msg)
+                            update_memory(config, project_name, task_id, "blocked", incident_msg)
+                            return result
+
+                        # Attempt recovery (contained failures only)
+                        recovery = attempt_recovery(code_path, task, comparison["details"], config, system_files)
+
+                        if not recovery["success"]:
+                            # Recovery failed - revert to checkpoint
+                            revert_to_checkpoint(code_path, checkpoint_hash)
+
+                            # Get updated diff for subagent review
+                            diff = get_diff_since_checkpoint(code_path, checkpoint_hash)
+
+                            # Run subagent review
+                            subagent_rec = run_subagent_review(task, diff, comparison["details"],
+                                                              incident_msg, config, system_files)
+
+                            result["status"] = "blocked"
+                            result["error"] = f"recovery_failed-{subagent_rec}"
+                            log_decision(config, project_name, task_id, "recovery_attempt",
+                                       "fix new validation failures", "skip recovery attempt", "failed",
+                                       incident=f"{incident_msg}. Subagent recommendation: {subagent_rec}")
+                            update_memory(config, project_name, task_id, "blocked",
+                                        f"recovery failed. Subagent recommendation: {subagent_rec}")
+                            return result
+
+                        # Recovery succeeded
                         log_decision(config, project_name, task_id, "recovery_attempt",
-                                   "fix new validation failures", "skip recovery attempt", "failed",
-                                   incident=f"{incident_msg}. Subagent recommendation: {subagent_rec}")
-                        update_memory(config, project_name, task_id, "blocked",
-                                    f"recovery failed. Subagent recommendation: {subagent_rec}")
-                        return result
+                                   "fix new validation failures", "escalate", "completed",
+                                   incident="self-corrected after initial failure")
 
-                    # Recovery succeeded
-                    log_decision(config, project_name, task_id, "recovery_attempt",
-                               "fix new validation failures", "escalate", "completed",
-                               incident="self-corrected after initial failure")
-
-        # 8. Commit changes
-        if code_path and code_path.exists() and checkpoint_hash and changed_files:
+        # 8. Commit changes (skip for read-only tasks)
+        if code_path and code_path.exists() and checkpoint_hash and changed_files and not is_readonly:
             message = f"Complete {task_id}: {task.get('description', '')[:50]}"
             commit = commit_changes(code_path, task_id, message)
             if not commit:

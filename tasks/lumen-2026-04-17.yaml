@@ -75,7 +75,7 @@ tasks:
     tech stack, deployment status, and last commit date. Any new blockers or backlog
     items are grounded in codebase findings.
   estimated_minutes: 30
-  status: blocked
+  status: open
   depends_on: null
   created_by: founder
   priority: 0
