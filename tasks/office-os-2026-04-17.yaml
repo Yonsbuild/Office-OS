@@ -10,7 +10,7 @@ tasks:
     description: "Create decisions.md files for all five projects (lumen, merlin, sales, shoptrack, office-os) using structured template with clear decision logging format. Template should include: decision context, options considered, chosen option, rationale, and date."
     acceptance_criteria: "All five decisions.md files exist in /projects/[project]/ with consistent structure. Files are tracked in git. Template allows agent to log decisions made during task execution."
     estimated_minutes: 45
-    status: "open"
+    status: "done"
     depends_on: null
     created_by: "founder"
     priority: 1

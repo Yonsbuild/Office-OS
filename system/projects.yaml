@@ -1,0 +1,66 @@
+# Project Path Mapping
+# memory: path to memory.md relative to office-os repo root
+# decisions: path to decisions.md relative to office-os repo root
+# tasks_prefix: prefix used for task YAML filenames in /tasks/
+# code: absolute path to the project's codebase on disk
+#       use "." for projects that live inside office-os itself
+#       use null for projects with no separate codebase
+#
+# The agent reads memory/decisions/tasks from office-os
+# but operates on code at the path specified below.
+
+projects:
+  lumen:
+    memory: projects/lumen/memory.md
+    decisions: projects/lumen/decisions.md
+    tasks_prefix: "lumen"
+    code: ~/lumen
+    validation:
+      - "echo 'No test suite configured — manual review required'"
+    branch_prefix: "agent/lumen"
+
+  merlin:
+    memory: projects/merlin/memory.md
+    decisions: projects/merlin/decisions.md
+    tasks_prefix: "merlin"
+    code: ~/merlin
+    validation:
+      - "echo 'No test suite configured — manual review required'"
+    branch_prefix: "agent/merlin"
+
+  sales:
+    memory: projects/sales/memory.md
+    decisions: projects/sales/decisions.md
+    tasks_prefix: "sales"
+    code: null
+    validation: null
+    branch_prefix: "agent/sales"
+
+  shoptrack:
+    memory: projects/shoptrack/memory.md
+    decisions: projects/shoptrack/decisions.md
+    tasks_prefix: "shoptrack"
+    code: ~/shoptrack
+    validation:
+      - "echo 'No test suite configured — manual review required'"
+    branch_prefix: "agent/shoptrack"
+
+  office-os:
+    memory: projects/office-os/memory.md
+    decisions: projects/office-os/decisions.md
+    tasks_prefix: "office-os"
+    code: "."
+    validation:
+      - "echo 'No test suite configured — manual review required'"
+    branch_prefix: "agent/office-os"
+
+# FOUNDER ACTION REQUIRED:
+# 1. Verify that the code paths (~/lumen, ~/merlin, ~/shoptrack) match
+#    your actual directory structure. Update if different.
+# 2. Replace validation echo commands with real test/lint/build commands
+#    as each project gets a test suite. Examples:
+#    - "cd ~/merlin && npm test"
+#    - "cd ~/lumen && python -m pytest tests/"
+#    - "cd ~/shoptrack && npm run lint"
+# 3. Until real validation commands are set, the agent will flag all
+#    code changes as "manual review required" per the failure protocol.
