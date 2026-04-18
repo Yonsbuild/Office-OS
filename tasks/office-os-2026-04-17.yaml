@@ -32,7 +32,7 @@ tasks:
     description: "Build verify.py post-run checks that validate task completion. Should read completed task files and brief outputs, verify acceptance criteria were met, flag any incomplete or blocked tasks, generate summary report."
     acceptance_criteria: "verify.py can be executed post-run, validates all completed tasks against acceptance criteria, generates report showing verification results, identifies any tasks that need re-work."
     estimated_minutes: 60
-    status: "open"
+    status: "done"
     depends_on: "office-os-002"
     created_by: "founder"
     priority: 3
