@@ -1112,7 +1112,9 @@ def update_task_status(config, project_name, task_file_path, task_id, new_status
 
 def write_brief(config, run_summary):
     """
-    Create briefs/YYYY-MM-DD.md from run_summary dict.
+    Append conversational run entry to briefs/YYYY-MM-DD.md.
+    Creates file with header if it doesn't exist.
+    Each run appends a timestamped block in plain conversational language.
     """
     repo_root = config["repo_root"]
     briefs_dir = repo_root / "briefs"
@@ -1120,47 +1122,139 @@ def write_brief(config, run_summary):
 
     date_str = datetime.datetime.now().strftime("%Y-%m-%d")
     brief_file = briefs_dir / f"{date_str}.md"
+    time_str = datetime.datetime.now().strftime("%H:%M")
 
-    content = f"""# Daily Brief — {date_str}
+    # Initialize file with header if it doesn't exist
+    if not brief_file.exists():
+        try:
+            with open(brief_file, "w") as f:
+                f.write(f"# Daily Brief — {date_str}\n\n")
+        except Exception as e:
+            print(f"WARNING: Failed to create brief file: {e}", file=sys.stderr)
+            return
 
-## Summary
-- Tasks completed: {len(run_summary.get('completed', []))}
-- Tasks blocked: {len(run_summary.get('blocked', []))}
-- Tasks skipped: {len(run_summary.get('skipped', []))}
+    # Build conversational entry
+    entry = _build_brief_entry(time_str, run_summary)
 
-## Completed Tasks
-{_format_task_list(run_summary.get('completed', []))}
-
-## Blocked Tasks
-{_format_task_list(run_summary.get('blocked', []))}
-
-## Skipped Tasks
-{_format_task_list(run_summary.get('skipped', []))}
-
-## Escalations
-{_format_escalations(run_summary.get('escalations', []))}
-
-## Next Run
-Expected tasks:
-{_format_task_list(run_summary.get('next', []))}
-"""
-
+    # Append entry to file
     try:
-        with open(brief_file, "w") as f:
-            f.write(content)
+        with open(brief_file, "a") as f:
+            f.write(entry)
     except Exception as e:
-        print(f"WARNING: Failed to write brief: {e}", file=sys.stderr)
+        print(f"WARNING: Failed to write brief entry: {e}", file=sys.stderr)
+
+
+def _build_brief_entry(time_str, run_summary):
+    """
+    Build a conversational timestamped entry from run_summary.
+    Returns formatted string ready to append to brief file.
+    """
+    lines = ["---", f"**[{time_str}]**", ""]
+
+    completed = run_summary.get("completed", [])
+    blocked = run_summary.get("blocked", [])
+    skipped = run_summary.get("skipped", [])
+
+    # Build conversational paragraph for completed tasks
+    if completed:
+        para = []
+        for i, task in enumerate(completed):
+            task_id = task.get("id", "unknown")
+            description = task.get("description", "")
+            summary = task.get("summary", "")
+
+            # Determine if read-only task
+            is_readonly = "read-only" in task.get("notes", "").lower()
+            if not is_readonly and task.get("complexity") == "low":
+                desc_lower = description.lower()
+                inspection_keywords = {"inspect", "inspection", "review", "audit", "read", "analyze", "analysis"}
+                is_readonly = any(kw in desc_lower for kw in inspection_keywords)
+
+            # Build sentence from summary if available
+            if summary:
+                # Extract first sentence or key points from LLM response
+                first_line = summary.split("\n")[0]
+                task_sentence = f"Ran {task_id} — {first_line[:100]}"
+            else:
+                task_sentence = f"Ran {task_id} — {description[:80]}"
+
+            # Add read-only note if applicable
+            if is_readonly:
+                task_sentence += ". Didn't touch any source code."
+
+            if i == 0:
+                para.append(task_sentence)
+            else:
+                para.append(f"Also {task_sentence[4:]}")  # Remove "Ran " prefix for continuation
+
+        lines.append(" ".join(para))
+
+    # Add blocked tasks on separate sentences
+    if blocked:
+        lines.append("")
+        for task in blocked:
+            task_id = task.get("id", "unknown")
+            error = task.get("error", "unknown error")
+            notes = task.get("notes", "")
+
+            # Convert error code to plain language
+            error_msg = _error_to_plain_language(error, notes)
+            lines.append(f"Tried {task_id} but {error_msg}.")
+
+    # Add what's next (expectation for next run)
+    if completed or blocked:
+        lines.append("")
+        next_items = []
+        if completed:
+            next_items.extend([f"{t.get('id', 'unknown')}" for t in completed])
+        if blocked:
+            next_items.extend([f"{t.get('id', 'unknown')}" for t in blocked if "retry" in t.get("notes", "").lower()])
+
+        if next_items:
+            next_str = ", ".join(next_items[:2])
+            if len(next_items) > 2:
+                next_str += " and more"
+            lines.append(f"Next up: {next_str}.")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _error_to_plain_language(error, notes):
+    """Convert error codes to conversational language."""
+    error_map = {
+        "checkpoint_failed": "couldn't create a git checkpoint",
+        "branch_creation_failed": "couldn't create a git branch",
+        "commit_failed": "couldn't commit changes",
+        "file_write_error": "encountered file write errors",
+        "cascading_failure": "caused validation failures we couldn't safely recover from",
+        "recovery_failed": "failed to recover after validation errors",
+        "llm_api_error": "LLM API call failed"
+    }
+
+    for key, msg in error_map.items():
+        if key in error:
+            return msg
+
+    # Check notes for infrastructure issues
+    notes_lower = notes.lower()
+    if "dirty working tree" in notes_lower:
+        return "couldn't proceed — probably a dirty working tree"
+    if "infrastructure" in notes_lower or "transient" in notes_lower:
+        return "hit an infrastructure issue"
+
+    return "encountered an error"
 
 
 def _format_task_list(tasks):
-    """Helper to format task lists for brief."""
+    """Helper to format task lists for brief. Kept for backwards compatibility."""
     if not tasks:
         return "- None"
     return "\n".join(f"- {t.get('project', 'unknown')}/{t.get('id', 'unknown')}: {t.get('description', '')[:60]}" for t in tasks)
 
 
 def _format_escalations(escalations):
-    """Helper to format escalations for brief."""
+    """Helper to format escalations for brief. Kept for backwards compatibility."""
     if not escalations:
         return "- None"
     return "\n".join(f"- {e.get('project')}/{e.get('task_id')}: {e.get('reason', '')}" for e in escalations)
@@ -1340,6 +1434,9 @@ For code: use paths relative to the project code directory
                        "none", "blocked", incident="LLM API error")
             update_memory(config, project_name, task_id, "blocked", "LLM API error")
             return result
+
+        # Save brief summary of LLM response for brief writing
+        result["summary"] = response[:500]
 
         # 6. Apply LLM output
         changed_files = []
@@ -1524,13 +1621,14 @@ def run(args):
             for task_file in task_files:
                 update_task_status(config, project_name, task_file, task["id"], result["status"])
 
-            # Track result
+            # Track result — merge task dict with result (includes summary for completed tasks)
+            task_with_result = {**task, **result}
             if result["status"] == "done":
-                run_summary["completed"].append(task)
+                run_summary["completed"].append(task_with_result)
             elif result["status"] == "blocked":
-                run_summary["blocked"].append(task)
+                run_summary["blocked"].append(task_with_result)
             else:
-                run_summary["skipped"].append(task)
+                run_summary["skipped"].append(task_with_result)
 
     # Write brief
     if not dry_run:
