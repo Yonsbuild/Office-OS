@@ -487,6 +487,7 @@ def parse_and_apply_changes(code_path, llm_response):
     Format: <file_change path="relative/path" action="create|modify|delete">
             content here
             </file_change>
+    Skips memory files (handled by extract_memory_changes).
     Return dict: {success: bool, changed_files: [list], errors: [list]}
     """
     changed_files = []
@@ -500,6 +501,10 @@ def parse_and_apply_changes(code_path, llm_response):
         file_path_str = match.group(1)
         action = match.group(2)
         content = match.group(3).strip()
+
+        # Skip memory files - they are handled by extract_memory_changes()
+        if "memory.md" in file_path_str or file_path_str.startswith("projects/"):
+            continue
 
         file_path = code_path / file_path_str
 
@@ -524,6 +529,60 @@ def parse_and_apply_changes(code_path, llm_response):
         "changed_files": changed_files,
         "errors": errors
     }
+
+
+def extract_memory_changes(repo_root, llm_response, project_name, config):
+    """
+    Extract <file_change> tags targeting memory files from LLM response.
+    Handles files containing "memory.md" or starting with "projects/".
+    Applies changes relative to repo_root instead of code_path.
+
+    Returns list of changed file paths.
+    """
+    changed_files = []
+    project_config = config["projects"].get(project_name, {})
+    memory_rel_path = project_config.get("memory", f"projects/{project_name}/memory.md")
+
+    # Extract file_change blocks
+    pattern = r'<file_change\s+path="([^"]+)"\s+action="(create|modify|delete)">([^<]*)</file_change>'
+    matches = re.finditer(pattern, llm_response, re.DOTALL)
+
+    for match in matches:
+        file_path_str = match.group(1)
+        action = match.group(2)
+        content = match.group(3).strip()
+
+        # Only process memory files
+        if not ("memory.md" in file_path_str or file_path_str.startswith("projects/")):
+            continue
+
+        # Resolve the full path
+        if file_path_str == "memory.md":
+            # Just "memory.md" means the project's memory file
+            full_path = repo_root / memory_rel_path
+        else:
+            # Already a full relative path (e.g., "projects/lumen/memory.md")
+            full_path = repo_root / file_path_str
+
+        try:
+            if action == "create" or action == "modify":
+                # Ensure parent directory exists
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(full_path, "w") as f:
+                    f.write(content)
+                changed_files.append(str(file_path_str))
+                print(f"[MEMORY] Updated {full_path}")
+
+            elif action == "delete":
+                if full_path.exists():
+                    full_path.unlink()
+                    changed_files.append(str(file_path_str))
+                    print(f"[MEMORY] Deleted {full_path}")
+
+        except Exception as e:
+            print(f"WARNING: Error processing memory file {file_path_str}: {e}", file=sys.stderr)
+
+    return changed_files
 
 
 # ============================================================================
@@ -951,6 +1010,9 @@ def execute_task(task, project_name, config, system_files, dry_run=False):
             for file_path, content in relevant_code.items():
                 code_section += f"\n--- {file_path} ---\n{content[:1000]}\n"
 
+        # Resolve memory path for reference in prompt
+        memory_rel_path = config["projects"][project_name].get("memory", f"projects/{project_name}/memory.md")
+
         user_prompt = f"""
 Project Memory:
 {memory}
@@ -965,10 +1027,29 @@ Operating Principles:
 
 {code_section}
 
-Please execute this task and wrap any file changes in:
+INSTRUCTIONS FOR FILE CHANGES:
+
+For code changes: Use paths relative to the project code directory.
+
+For memory updates: If this task involves inspection, analysis, or review (read-only operations), you MUST output a <file_change> tag to update the project memory file. The memory file path is: {memory_rel_path}
+
+Update memory.md to reflect the CURRENT STATE of the project after this task completes. Update these sections with concise, scannable information:
+- Current Milestone: One or two sentences about what's actually true now
+- Backlog: Concrete next steps as short bullet points (not paragraphs)
+- Context Window: Key facts the next agent run needs (tech stack, key files, architecture in brief bullets)
+- Blockers: Add new ones discovered, remove resolved ones (one line each)
+
+Keep memory.md concise and scannable. It is a snapshot showing current state, NOT a report. Detailed analysis and reasoning belong in your response text, not in memory.md.
+
+Preserve all existing section headers: Vision, Current Milestone, Active Offer, Positioning, Backlog, Queue, Blockers, Context Window, Last Updated.
+
+Wrap code changes and memory updates in XML tags:
 <file_change path="relative/path" action="create|modify|delete">
 content
 </file_change>
+
+For memory: use the exact path "{memory_rel_path}"
+For code: use paths relative to the project code directory
 """
 
         if dry_run:
@@ -1001,9 +1082,15 @@ content
 
         # 6. Apply LLM output
         changed_files = []
+
+        # Extract and apply memory.md changes (always, even for read-only tasks)
+        memory_changes = extract_memory_changes(config["repo_root"], response, project_name, config)
+        changed_files.extend(memory_changes)
+
+        # Extract and apply code changes (for non-read-only tasks with code)
         if code_path and code_path.exists():
             changes = parse_and_apply_changes(code_path, response)
-            changed_files = changes["changed_files"]
+            changed_files.extend(changes["changed_files"])
 
             if not changes["success"] and changes["errors"]:
                 result["status"] = "blocked"
