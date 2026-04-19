@@ -402,6 +402,26 @@ def select_model(task, models_config, is_subagent=False):
                     "max_tokens": tier_config.get("max_tokens", 4096)
                 }
 
+    # Inspection tasks always use expensive tier — they need to synthesize codebase context into memory updates,
+    # which requires stronger reasoning. Check before default complexity routing.
+    notes_lower = task.get("notes", "").lower()
+    is_readonly_task = "read-only" in notes_lower
+
+    if not is_readonly_task and task.get("complexity") == "low":
+        # Also treat as inspection if description contains keywords
+        description_lower = task.get("description", "").lower()
+        inspection_keywords = {"inspect", "inspection", "review", "audit", "read", "analyze", "analysis"}
+        if any(kw in description_lower for kw in inspection_keywords):
+            is_readonly_task = True
+
+    if is_readonly_task:
+        tier = models_config.get("expensive", {})
+        return {
+            "provider": tier.get("provider", "openai"),
+            "model": tier.get("model", "gpt-4o"),
+            "max_tokens": tier.get("max_tokens", 4096)
+        }
+
     # Default: use complexity field
     complexity = task.get("complexity", "low")
     tier_name = "cheap" if complexity == "low" else "expensive"
