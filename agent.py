@@ -232,6 +232,140 @@ def load_relevant_code(code_path, task_description, max_tokens=50000):
     return relevant
 
 
+def load_inspection_context(code_path, max_tokens=15000):
+    """
+    Build structured codebase context for inspection tasks.
+    Gathers real codebase data: directory structure, git history, dependencies, key source files.
+
+    Returns formatted string ready for LLM consumption.
+    Max output is capped at max_tokens (estimated at 4 chars per token).
+    """
+    if not code_path or not code_path.exists():
+        return ""
+
+    sections = []
+    char_count = 0
+    max_chars = max_tokens * 4
+
+    # 1. Directory tree (2 levels)
+    try:
+        result = subprocess.run(
+            ["find", ".", "-maxdepth", "2", "-not", "-path", "./.git/*", "-not", "-path", "./node_modules/*", "-not", "-path", "./__pycache__/*"],
+            cwd=code_path,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            tree_output = result.stdout.strip()
+            sections.append("=== DIRECTORY STRUCTURE ===")
+            sections.append(tree_output)
+            char_count += len(tree_output)
+    except Exception as e:
+        sections.append(f"[Directory structure unavailable: {e}]")
+
+    if char_count > max_chars:
+        return "\n".join(sections[:2])
+
+    # 2. Git log (last 10 commits)
+    try:
+        result = subprocess.run(
+            ["git", "log", "--oneline", "-10"],
+            cwd=code_path,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            git_output = result.stdout.strip()
+            sections.append("\n=== RECENT GIT HISTORY ===")
+            sections.append(git_output)
+            char_count += len(git_output)
+        else:
+            sections.append("\n=== RECENT GIT HISTORY ===")
+            sections.append("No git history available.")
+    except Exception as e:
+        sections.append(f"\n[Git history unavailable: {e}]")
+
+    if char_count > max_chars:
+        return "\n".join(sections)
+
+    # 3. Dependency files
+    sections.append("\n=== DEPENDENCIES ===")
+    dependency_files = ["requirements.txt", "package.json", "Cargo.toml", "pyproject.toml", "go.mod", "Gemfile"]
+    deps_added = False
+
+    for dep_file in dependency_files:
+        dep_path = code_path / dep_file
+        if dep_path.exists():
+            try:
+                with open(dep_path, encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                if char_count + len(content) <= max_chars:
+                    sections.append(f"--- {dep_file} ---")
+                    sections.append(content)
+                    char_count += len(content)
+                    deps_added = True
+            except Exception as e:
+                sections.append(f"[Error reading {dep_file}: {e}]")
+
+    if not deps_added:
+        sections.append("[No dependency files found]")
+
+    if char_count > max_chars:
+        return "\n".join(sections)
+
+    # 4. Key source files
+    sections.append("\n=== KEY SOURCE FILES ===")
+    entry_points = ["app.py", "main.py", "index.js", "index.ts", "server.py", "server.js",
+                    "manage.py", "wsgi.py", "asgi.py", "flask_app.py", "routes.py",
+                    "api.py", "config.py", "settings.py", ".env.example"]
+
+    for entry_file in entry_points:
+        entry_path = code_path / entry_file
+        if entry_path.exists():
+            try:
+                with open(entry_path, encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+
+                # Cap each entry file at 3000 chars
+                content = content[:3000]
+
+                if char_count + len(content) <= max_chars:
+                    sections.append(f"\n--- {entry_file} ---")
+                    sections.append(content)
+                    char_count += len(content)
+            except Exception as e:
+                sections.append(f"\n[Error reading {entry_file}: {e}]")
+
+    if char_count > max_chars:
+        return "\n".join(sections)
+
+    # 5. README (last, with caveat)
+    sections.append("\n=== README ===")
+    sections.append("NOTE: README may be outdated. Prioritize what you observe in code, git history, and dependencies over README claims.")
+
+    for readme_name in ["README.md", "README"]:
+        readme_path = code_path / readme_name
+        if readme_path.exists():
+            try:
+                with open(readme_path, encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+
+                if char_count + len(content) <= max_chars:
+                    sections.append(f"\n--- {readme_name} ---")
+                    sections.append(content)
+                    char_count += len(content)
+            except Exception as e:
+                sections.append(f"\n[Error reading {readme_name}: {e}]")
+
+    # Prepend caveat at top
+    output = "NOTE: README may be outdated. Prioritize what you observe in code, git history, and dependencies over README claims.\n\n"
+    output += "\n".join(sections)
+
+    return output
+
+
 # ============================================================================
 # MODEL ROUTING
 # ============================================================================
@@ -1034,16 +1168,7 @@ def execute_task(task, project_name, config, system_files, dry_run=False):
     }
 
     try:
-        # 1. Load project context
-        memory = load_memory(config, project_name)
-        relevant_code = {}
-        if code_path and code_path.exists():
-            relevant_code = load_relevant_code(code_path, task.get("description", ""))
-
-        # 2. Select model
-        model_info = select_model(task, config["models"])
-
-        # 3. Check if task is read-only
+        # 0. Determine if task is read-only (early, before context loading)
         # FIX 1: Enhanced read-only detection
         is_readonly = "read-only" in task.get("notes", "").lower()
 
@@ -1053,6 +1178,21 @@ def execute_task(task, project_name, config, system_files, dry_run=False):
             readonly_keywords = {"inspect", "inspection", "review", "audit", "read", "analyze", "analysis"}
             if any(kw in description_lower for kw in readonly_keywords):
                 is_readonly = True
+
+        # 1. Load project context
+        memory = load_memory(config, project_name)
+        relevant_code = {}
+        inspection_context = ""
+
+        if code_path and code_path.exists():
+            # Load appropriate context based on task type
+            if is_readonly:
+                inspection_context = load_inspection_context(code_path)
+            else:
+                relevant_code = load_relevant_code(code_path, task.get("description", ""))
+
+        # 2. Select model
+        model_info = select_model(task, config["models"])
 
         # 4. Git operations (if code task and not read-only)
         checkpoint_hash = None
@@ -1102,7 +1242,11 @@ def execute_task(task, project_name, config, system_files, dry_run=False):
         # 4. Build prompt
         system_prompt = system_files["agent_prompt"]
         code_section = ""
-        if relevant_code:
+
+        # Use inspection context for read-only tasks, keyword-matched code for change tasks
+        if is_readonly and inspection_context:
+            code_section = f"\n\n{inspection_context}"
+        elif relevant_code:
             code_section = "\n\nRelevant Code Files:\n"
             for file_path, content in relevant_code.items():
                 code_section += f"\n--- {file_path} ---\n{content[:1000]}\n"
