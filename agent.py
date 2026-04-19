@@ -151,16 +151,27 @@ def get_next_tasks(tasks):
     """
     Filter to open tasks.
     Skip tasks whose depends_on points to a non-done task.
+    FIX 4: Treat infrastructure-blocked tasks as open (eligible for retry).
     Return ordered list of executable tasks.
     """
     executable = []
     done_tasks = {t["id"] for t in tasks if t.get("status") == "done"}
+    infrastructure_blockers = {"checkpoint", "branch creation", "commit failed"}
 
     for task in tasks:
+        # Check if task is open
         if task.get("status") == "open":
             depends_on = task.get("depends_on")
             if depends_on is None or depends_on in done_tasks:
                 executable.append(task)
+        # FIX 4: Auto-retry infrastructure-blocked tasks on next run
+        elif task.get("status") == "blocked":
+            notes = task.get("notes", "").lower()
+            # If blocked due to transient infrastructure issues, treat as open
+            if any(blocker in notes for blocker in infrastructure_blockers):
+                depends_on = task.get("depends_on")
+                if depends_on is None or depends_on in done_tasks:
+                    executable.append(task)
 
     return executable
 
@@ -409,6 +420,78 @@ def get_diff_since_checkpoint(code_path, checkpoint_hash):
     """
     success, diff, _ = run_git(code_path, "diff", checkpoint_hash, "HEAD")
     return diff if success else ""
+
+
+def get_default_branch(code_path):
+    """
+    FIX 3: Detect default branch for the repository.
+    Try in order:
+    1. git symbolic-ref refs/remotes/origin/HEAD (canonical)
+    2. Check if 'main' exists
+    3. Check if 'master' exists
+    Return branch name or None.
+    """
+    # Try symbolic-ref first
+    success, stdout, _ = run_git(code_path, "symbolic-ref", "refs/remotes/origin/HEAD")
+    if success and stdout:
+        # Output is "refs/remotes/origin/main" or similar
+        parts = stdout.split("/")
+        if parts:
+            return parts[-1]
+
+    # Fall back to checking for 'main'
+    success, stdout, _ = run_git(code_path, "branch", "--list", "main")
+    if success and "main" in stdout:
+        return "main"
+
+    # Fall back to checking for 'master'
+    success, stdout, _ = run_git(code_path, "branch", "--list", "master")
+    if success and "master" in stdout:
+        return "master"
+
+    return None
+
+
+def cleanup_stale_branch(code_path, branch_name):
+    """
+    FIX 2: Clean up stale agent branch before creating new one.
+    - Check if branch exists via 'git branch --list {branch_name}'
+    - If exists and we're NOT on it, delete with 'git branch -D {branch_name}'
+    - If we ARE on it, checkout default branch first, then delete
+    Return True if cleanup succeeded or branch didn't exist, False if cleanup failed.
+    """
+    # Check if branch exists
+    success, stdout, _ = run_git(code_path, "branch", "--list", branch_name)
+    if not success or branch_name not in stdout:
+        # Branch doesn't exist, nothing to clean up
+        return True
+
+    # Get current branch
+    success, current_branch, _ = run_git(code_path, "rev-parse", "--abbrev-ref", "HEAD")
+    if not success:
+        return False
+
+    current_branch = current_branch.strip()
+
+    # If we're on the stale branch, need to checkout default branch first
+    if current_branch == branch_name:
+        default_branch = get_default_branch(code_path)
+        if not default_branch:
+            print(f"WARNING: Could not determine default branch to checkout before deleting {branch_name}", file=sys.stderr)
+            return False
+
+        success, _, stderr = run_git(code_path, "checkout", default_branch)
+        if not success:
+            print(f"WARNING: Failed to checkout {default_branch} before deleting {branch_name}: {stderr}", file=sys.stderr)
+            return False
+
+    # Now delete the branch
+    success, _, stderr = run_git(code_path, "branch", "-D", branch_name)
+    if not success:
+        print(f"WARNING: Failed to delete stale branch {branch_name}: {stderr}", file=sys.stderr)
+        return False
+
+    return True
 
 
 # ============================================================================
@@ -961,19 +1044,33 @@ def execute_task(task, project_name, config, system_files, dry_run=False):
         model_info = select_model(task, config["models"])
 
         # 3. Check if task is read-only
+        # FIX 1: Enhanced read-only detection
         is_readonly = "read-only" in task.get("notes", "").lower()
+
+        # Also treat as read-only if: complexity=low AND description contains inspection/analysis keywords
+        if not is_readonly and task.get("complexity") == "low":
+            description_lower = task.get("description", "").lower()
+            readonly_keywords = {"inspect", "inspection", "review", "audit", "read", "analyze", "analysis"}
+            if any(kw in description_lower for kw in readonly_keywords):
+                is_readonly = True
 
         # 4. Git operations (if code task and not read-only)
         checkpoint_hash = None
         branch_name = None
         pre_validation = None
 
+        # FIX 1: Skip ENTIRE git section for read-only tasks
         if code_path and code_path.exists() and not is_readonly:
             stash = ensure_clean_tree(code_path)
             if dry_run:
                 print(f"[DRY-RUN] Would ensure clean tree: {stash}")
 
             branch_prefix = project_config.get("branch_prefix", f"agent/{project_name}")
+
+            # FIX 2: Clean up stale branch before creating new one
+            if not dry_run:
+                cleanup_stale_branch(code_path, f"{branch_prefix}-{task_id}")
+
             branch_name = create_branch(code_path, branch_prefix, task_id)
 
             if not branch_name and not dry_run:
@@ -1192,6 +1289,17 @@ For code: use paths relative to the project code directory
         log_decision(config, project_name, task_id, "execute_task", "complete assigned work",
                    "none", "blocked", incident=str(e))
         update_memory(config, project_name, task_id, "blocked", f"execution error: {e}")
+
+    finally:
+        # FIX 3: Always return to default branch after task execution
+        if branch_name and code_path and code_path.exists() and not dry_run:
+            default_branch = get_default_branch(code_path)
+            if default_branch:
+                success, _, stderr = run_git(code_path, "checkout", default_branch)
+                if success:
+                    print(f"[CLEANUP] Checked out {default_branch} after task {task_id}")
+                else:
+                    print(f"WARNING: Failed to checkout {default_branch} after task {task_id}: {stderr}", file=sys.stderr)
 
     return result
 
