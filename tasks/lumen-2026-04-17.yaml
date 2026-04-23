@@ -9,7 +9,7 @@ tasks:
     runs core DSCR, income, and DTI checks without requiring Python environment setup.
     Quick start guide exists.
   estimated_minutes: 75
-  status: open
+  status: blocked
   depends_on: null
   created_by: founder
   priority: 1
@@ -75,7 +75,7 @@ tasks:
     tech stack, deployment status, and last commit date. Any new blockers or backlog
     items are grounded in codebase findings.
   estimated_minutes: 30
-  status: open
+  status: done
   depends_on: null
   created_by: founder
   priority: 0

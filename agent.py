@@ -1571,6 +1571,53 @@ def run(args):
     Parse CLI args, load config, execute tasks, write brief.
     """
     config = load_config()
+def run(args):
+    config = load_config()
+
+    if args.status:
+        print("\n=== CHECK-IN ===\n")
+
+        projects = config["projects"].keys() if args.all else [args.project]
+
+        for project_name in projects:
+            tasks = load_tasks(config, project_name)
+            executable = get_next_tasks(tasks)
+
+            done = [t for t in tasks if t.get("status") == "done"]
+            blocked = [t for t in tasks if t.get("status") == "blocked"]
+            open_tasks = [t for t in tasks if t.get("status") == "open"]
+
+            print(f"{project_name}:")
+
+            if done:
+                last = done[-1]
+                print(f"  worked on {last.get('id')} — {last.get('description', '')[:60]}")
+            elif open_tasks:
+                next_task = executable[0] if executable else open_tasks[0]
+                print(f"  working on {next_task.get('id')} — {next_task.get('description', '')[:60]}")
+            else:
+                print("  no active work right now")
+
+            if blocked:
+                b = blocked[0]
+                print(f"  ran into blocker on {b.get('id')} — {b.get('notes', b.get('error', 'needs attention'))}")
+            else:
+                print("  no other issues — everything looks good")
+
+            if executable:
+                nxt = executable[0]
+                print(f"  next up: {nxt.get('id')} — {nxt.get('description', '')[:60]}")
+            else:
+                print("  nothing queued next")
+
+            if len(blocked) > 1:
+                print(f"  keep an eye on {blocked[1].get('id')} — may need attention")
+            elif len(open_tasks) > 1:
+                print(f"  keep an eye on {open_tasks[1].get('id')} — coming up next")
+
+            print("")
+
+        return
 
     # Load system files
     system_files = {
@@ -1653,6 +1700,7 @@ def main():
     parser.add_argument("--all", action="store_true", help="Run all projects")
     parser.add_argument("--once", action="store_true", help="Execute only first task")
     parser.add_argument("--dry-run", action="store_true", help="Simulate without changes")
+    parser.add_argument("--status", action="store_true", help="Show system status (no execution)")
 
     args = parser.parse_args()
 

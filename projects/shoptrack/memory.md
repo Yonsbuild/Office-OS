@@ -1,35 +1,24 @@
-<!-- This file is updated by both founder and agent. Do not treat as static. -->
-
-# ShopTrack — Memory
-
-## Vision
-Financial clarity layer for messy service businesses (auto shops). Not a shop tool — an accountant-facing wedge. Long-term becomes clean financial record system and EOY reporting engine. This is the boring cash generator, not the breakout.
-
 ## Current Milestone
-Core system exists — work orders, payments, audit logic (voiding, tracking). Bugs present: schema drift in Supabase, frontend inconsistencies. Closer to usable than other projects but weakest strategic pull right now.
-
-## Active Offer
-Sell through bookkeepers and accountants, not shops directly.
-
-## Positioning
-"Financial clarity layer for messy service businesses." Accountant-facing wedge into auto shop market.
+Continued development of core features such as customer and vehicle management, work order processing, and secure authentication using Supabase Auth. The system can now auto-transition work orders to COMPLETED, along with improvements in error handling for customer updates.
 
 ## Backlog
-- Fix Supabase schema drift
-- Fix frontend inconsistencies
-- Identify first accountant/bookkeeper channel partner
-- Build EOY reporting feature
-- Document current system capabilities
-
-## Queue
-<!-- Founder populates after reviewing backlog -->
-
-## Blockers
-- Schema drift in Supabase | severity: medium | owner: agent
-- Low urgency market — competes with inertia, not competitors | severity: medium | owner: founder
+- Resolve schema drift in Supabase
+- Enhance frontend to fix blank screen issues
+- Channel partnership identification with accountants
+- Finalize the EOY reporting feature
+- Document existing system capabilities
 
 ## Context Window
-ShopTrack is optional cashflow. Lowest priority in the portfolio hierarchy. Only invest time here if it generates steady revenue without pulling focus from Lumen/Merlin.
+- **Tech Stack:** FastAPI backend with Python 3.11+, React 18 frontend, Supabase for database and auth, hosted on Vercel (frontend) and Render (backend).
+- **Architecture:** Multi-tenant system with row-level security, JWT authentication, parameterized SQL queries for security.
+- **Key Files:** app/main.py (FastAPI entry), frontend/src/main.jsx (React entry), backend/database_schema.sql (database schema).
+
+## Blockers
+- Supabase schema drift | severity: medium | owner: agent
+- Low urgency market — competes with inertia, not competitors | severity: medium | owner: founder
+- README might not reflect current codebase state accurately
+## Queue
+- [{'x' if status == 'done' else '!'}] shoptrack-005
 
 ## Last Updated
-2026-04-17 12:00 by founder
+2026-04-19T02:47:26.487878

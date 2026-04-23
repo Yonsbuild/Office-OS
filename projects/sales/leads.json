@@ -1,0 +1,16 @@
+[
+  {
+    "lead_name": "Test Contact",
+    "lead_role": "lending leader",
+    "institution": "regional bank",
+    "relationship_context": "a mutual contact suggested I reach out",
+    "preferred_angle": "risk"
+  },
+  {
+    "lead_name": "Sample Prospect",
+    "lead_role": "credit manager",
+    "institution": "community lender",
+    "relationship_context": "cold outreach",
+    "preferred_angle": "efficiency"
+  }
+]

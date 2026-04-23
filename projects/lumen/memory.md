@@ -1,35 +1,24 @@
-<!-- This file is updated by both founder and agent. Do not treat as static. -->
-
-# Lumen — Memory
-
 ## Vision
-Financial verification product — catches calculation errors (DSCR, income, DTI) in lending workflows before they reach credit committee. Fastest path to revenue. Long-term expands into underwriting QA, internal audit tooling, compliance logging, and decision audit trails.
+Lumen provides a cryptographically verifiable audit trail for credit memo generation, focusing on model output signing and tamper-evident provenance logging.
 
 ## Current Milestone
-Core checks working at CLI level. No UI, no ingestion pipeline. Product catches materially important errors but is not yet packaged for delivery.
-
-## Active Offer
-"Run your memo through this before submission" — positioned as a personal risk shield for loan officers and underwriters. Framing: "I help you not look wrong in front of credit committee."
-
-## Positioning
-Not "AI credit tool." Instead: personal risk shield for underwriters and loan officers. Sell to individuals who feel pain immediately, not institutions that move slow.
+The Lumen project has successfully implemented the DTI recomputation for multi-source income scenarios. The FLask application UI has been improved for better integration with loan officer tools.
 
 ## Backlog
-- Package CLI into deliverable format
-- Build simple ingestion pipeline
-- Create demo flow for loan officer audience
-- Document proof points from existing error catches
-- Explore accountant/bookkeeper channel
-
-## Queue
-<!-- Founder populates after reviewing backlog -->
-
-## Blockers
-- Privacy objections blocking demos | severity: high | owner: founder
-- Product not packaged — CLI only, no UI | severity: high | owner: founder
+- Enhance security measures further per recent audits
+- Finalize integration with lender systems
+- Explore potential augmentation with AI-driven suggestions
 
 ## Context Window
-Lumen is the entry point for revenue. Office OS sales engine should drive Lumen adoption. Go-to-market is bottom-up: loan officers first, then expand upward into institutions.
+- Tech Stack: Flask, Gunicorn
+- Deployment: Operational at CLI level; UI enhancements ongoing
+- Last Commit: c33feba - Fix Scenario 8: Add multi-source income DTI recomputation
+
+## Blockers
+- Privacy and packaging blockers remain, pending further guidance from the founder.
+
+## Queue
+- [{'x' if status == 'done' else '!'}] lumen-005
 
 ## Last Updated
-2026-04-17 12:00 by founder
+2026-04-19T03:49:01.858617

@@ -1,0 +1,9 @@
+[
+  {
+    "timestamp": "2026-04-14T10:01:52",
+    "lead_name": "Test Contact",
+    "institution": "regional bank",
+    "message_type": "initial_outreach",
+    "content": "Hi Test Contact, A mutual contact suggested I reach out.\n\nI\u2019ve been speaking with teams at regional bank about how key financial metrics like DSCR and income are verified.\n\nOne thing that keeps coming up is that reported numbers often aren\u2019t independently re-checked.\n\nIn one case, a DSCR was reported as 1.42 but recalculated closer to 1.18 \u2014 something that could have easily passed through.\n\nGiven your role as a lending leader, I was curious how your team currently catches issues like that."
+  }
+]

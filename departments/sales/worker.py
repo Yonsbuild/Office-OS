@@ -23,10 +23,9 @@ def handle(task: Task) -> Task:
         relationship_context = task.payload.get("relationship_context", "").strip()
         preferred_angle = task.payload.get("preferred_angle", "risk")
 
-        # Intro line
         intro = f"Hi {lead_name},"
         if relationship_context:
-            intro += f" {relationship_context.capitalize()}."
+            intro += f" {relationship_context.strip().rstrip('.')}."
 
         institution_phrase = f"teams at {institution}" if institution else "lending teams"
 
@@ -96,7 +95,6 @@ It’s a small issue until it isn’t, which is why I’ve been digging into how
 If it’s relevant, happy to share what I’ve been seeing.
 """.strip()
 
-        # Attach to payload
         task.payload["outreach_variants"] = variants
         task.payload["selected_outreach"] = variants.get(preferred_angle, risk_message)
 
