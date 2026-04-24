@@ -1565,13 +1565,61 @@ For code: use paths relative to the project code directory
     return result
 
 
+def attempt_blocker_resolution(blocked_task, all_tasks, project_name, config, system_files, dry_run=False):
+    """
+    Attempt to resolve a blocked task by executing its dependency.
+
+    If depends_on is missing → return False
+    Find dependency task in all_tasks
+    If dependency not found or already "done" → return False
+    Execute dependency using execute_task()
+    Update dependency status in YAML via update_task_status()
+    Return True only if dependency finishes with "done"
+    """
+    depends_on = blocked_task.get("depends_on")
+    if not depends_on:
+        return False
+
+    # Find dependency task
+    dep_task = None
+    for t in all_tasks:
+        if t.get("id") == depends_on:
+            dep_task = t
+            break
+
+    if not dep_task:
+        return False
+
+    # Prevent re-running same dependency in same run
+    if dep_task.get("_attempted"):
+        return False
+
+    dep_task["_attempted"] = True
+
+    # If dependency already done, nothing to do
+    if dep_task.get("status") == "done":
+        return False
+
+    # Execute dependency
+    result = execute_task(dep_task, project_name, config, system_files, dry_run=dry_run)
+
+    # Update dependency status in YAML
+    task_files = list((config["repo_root"] / "tasks").glob(f"{project_name}-*.yaml"))
+    for task_file in task_files:
+        update_task_status(config, project_name, task_file, depends_on, result["status"])
+
+    # Return True only if dependency finished with "done"
+    if result["status"] != "done":
+        return False
+
+    return True
+
+
 def run(args):
     """
     Main entry point.
     Parse CLI args, load config, execute tasks, write brief.
     """
-    config = load_config()
-def run(args):
     config = load_config()
 
     if args.status:
@@ -1673,7 +1721,25 @@ def run(args):
             if result["status"] == "done":
                 run_summary["completed"].append(task_with_result)
             elif result["status"] == "blocked":
-                run_summary["blocked"].append(task_with_result)
+                # Try to automatically resolve dependency blocker
+                if not dry_run and task.get("depends_on"):
+                    if attempt_blocker_resolution(task, tasks, project_name, config, system_files):
+                        # Retry original task
+                        result = execute_task(task, project_name, config, system_files, dry_run=dry_run)
+                        executed += 1
+
+                        # Update task status
+                        for task_file in task_files:
+                            update_task_status(config, project_name, task_file, task["id"], result["status"])
+
+                        # Recompute task_with_result with new result
+                        task_with_result = {**task, **result}
+
+                # Append to appropriate bucket based on final result
+                if result["status"] == "done":
+                    run_summary["completed"].append(task_with_result)
+                else:
+                    run_summary["blocked"].append(task_with_result)
             else:
                 run_summary["skipped"].append(task_with_result)
 
