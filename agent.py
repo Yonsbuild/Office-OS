@@ -1372,7 +1372,7 @@ def promote_candidates_to_tasks(config, project_name, candidates):
             continue
 
         normalized = task_description.strip().lower()
-        if any(normalized in d or d in normalized for d in existing_descriptions):
+        if normalized in existing_descriptions:
             continue
 
         target_tasks.append({
