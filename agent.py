@@ -1216,7 +1216,10 @@ def _find_cleanup_candidates(code_path):
             continue
 
         rel = str(file_path.relative_to(code_path))
-        if rel.startswith(".git/") or "/.git/" in rel:
+        if any(x in rel for x in [
+            ".git", "__pycache__", "node_modules",
+            "venv", ".venv", ".DS_Store"
+        ]):
             continue
 
         files_by_name.setdefault(file_path.name, []).append(rel)
@@ -1243,11 +1246,11 @@ def _find_cleanup_candidates(code_path):
 
     # Low-signal duplicate filename detection.
     for name, rel_paths in files_by_name.items():
-        if len(rel_paths) > 1:
+        if len(rel_paths) > 3:
             joined = ", ".join(sorted(rel_paths)[:3])
             candidates.add(f"duplicate filename '{name}': {joined}")
 
-    return sorted(candidates)
+    return sorted(candidates)[:25]
 
 
 def _append_cleanup_findings(memory_path, candidates):
@@ -1255,10 +1258,21 @@ def _append_cleanup_findings(memory_path, candidates):
     if not candidates:
         return
 
+    existing = set()
+    if memory_path.exists():
+        existing_text = memory_path.read_text()
+        for line in existing_text.splitlines():
+            existing.add(line.strip())
+
+    new_candidates = [c for c in candidates if c not in existing and f"- {c}" not in existing]
+
+    if not new_candidates:
+        return
+
     memory_path.parent.mkdir(parents=True, exist_ok=True)
     with open(memory_path, "a") as f:
         f.write("\ncleanup candidates:\n")
-        for candidate in candidates:
+        for candidate in new_candidates:
             f.write(f"- {candidate}\n")
 
 
