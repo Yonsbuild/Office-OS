@@ -1106,6 +1106,53 @@ def update_task_status(config, project_name, task_file_path, task_id, new_status
         return False
 
 
+def load_pending_approvals(config):
+    """Load approvals/pending.json, creating it as [] if missing."""
+    approvals_dir = config["repo_root"] / "approvals"
+    approvals_dir.mkdir(exist_ok=True)
+    approvals_file = approvals_dir / "pending.json"
+
+    if not approvals_file.exists():
+        with open(approvals_file, "w") as f:
+            json.dump([], f, indent=2)
+        return []
+
+    try:
+        with open(approvals_file) as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_pending_approvals(config, approvals):
+    """Persist approvals/pending.json."""
+    approvals_file = config["repo_root"] / "approvals" / "pending.json"
+    with open(approvals_file, "w") as f:
+        json.dump(approvals, f, indent=2)
+
+
+def add_pending_approval(config, task, project_name, result):
+    """Create a single pending approval for a blocked task if not already present."""
+    pending = load_pending_approvals(config)
+    task_id = task.get("id")
+    if any(a.get("task_id") == task_id for a in pending):
+        return
+
+    approval = {
+        "task_id": task_id,
+        "project": project_name,
+        "issue": result.get("error") or "blocked",
+        "options": [
+            {"id": "A", "action": "create minimal stub and continue"},
+            {"id": "B", "action": "reduce scope to smallest executable unit"},
+            {"id": "C", "action": "mark done and defer to backlog"}
+        ]
+    }
+    pending.append(approval)
+    save_pending_approvals(config, pending)
+
+
 # ============================================================================
 # DAILY BRIEF
 # ============================================================================
@@ -1134,7 +1181,7 @@ def write_brief(config, run_summary):
             return
 
     # Build conversational entry
-    entry = _build_brief_entry(time_str, run_summary)
+    entry = _build_brief_entry(time_str, run_summary, load_pending_approvals(config))
 
     # Append entry to file
     try:
@@ -1144,7 +1191,7 @@ def write_brief(config, run_summary):
         print(f"WARNING: Failed to write brief entry: {e}", file=sys.stderr)
 
 
-def _build_brief_entry(time_str, run_summary):
+def _build_brief_entry(time_str, run_summary, pending_approvals=None):
     """
     Build a conversational timestamped entry from run_summary.
     Returns formatted string ready to append to brief file.
@@ -1215,6 +1262,12 @@ def _build_brief_entry(time_str, run_summary):
             if len(next_items) > 2:
                 next_str += " and more"
             lines.append(f"Next up: {next_str}.")
+
+    if pending_approvals:
+        lines.append("")
+        lines.append("Approvals needed:")
+        for approval in pending_approvals:
+            lines.append(f"  {approval.get('task_id', 'unknown')} — {approval.get('issue', 'blocked')}")
 
     lines.append("")
     return "\n".join(lines)
@@ -1628,11 +1681,57 @@ def run(args):
     Parse CLI args, load config, execute tasks, write brief.
     """
     config = load_config()
+    pending_approvals = load_pending_approvals(config)
+
+    if args.approval is not None:
+        if args.approval == "list":
+            print("\nPending approvals:")
+            if pending_approvals:
+                for approval in pending_approvals:
+                    print(f"  {approval.get('task_id')} ({approval.get('project')}) — {approval.get('issue')}")
+                    for option in approval.get("options", []):
+                        print(f"    {option.get('id')}: {option.get('action')}")
+            else:
+                print("  no pending approvals")
+            return
+
+        if not pending_approvals:
+            print("No pending approvals to apply.")
+            return
+
+        selected = args.approval.upper()
+        approval = pending_approvals[0]
+        task_id = approval.get("task_id")
+        project_name = approval.get("project")
+        note = None
+        new_status = "open"
+
+        if selected == "A":
+            note = "approved: stub implementation"
+        elif selected == "B":
+            note = "approved: reduced scope"
+        elif selected == "C":
+            new_status = "done"
+        else:
+            print(f"Unknown approval option: {args.approval}")
+            return
+
+        task_files = list((config["repo_root"] / "tasks").glob(f"{project_name}-*.yaml"))
+        for task_file in task_files:
+            update_task_status(config, project_name, task_file, task_id, new_status, notes=note)
+
+        pending_approvals = pending_approvals[1:]
+        save_pending_approvals(config, pending_approvals)
+        print(f"Applied approval {selected} to {project_name}/{task_id}")
+        return
 
     if args.status:
         print("\n=== CHECK-IN ===\n")
 
-        projects = config["projects"].keys() if args.all else [args.project]
+        if args.all or not args.project:
+            projects = config["projects"].keys()
+        else:
+            projects = [args.project]
 
         for project_name in projects:
             tasks = load_tasks(config, project_name)
@@ -1672,6 +1771,14 @@ def run(args):
 
             print("")
 
+        print("Pending approvals:")
+        pending_approvals = load_pending_approvals(config)
+        if pending_approvals:
+            for approval in pending_approvals:
+                print(f"  {approval.get('task_id')} — {approval.get('issue')}")
+        else:
+            print("  no pending approvals")
+        print("")
         return
 
     # Load system files
@@ -1728,8 +1835,10 @@ def run(args):
             if result["status"] == "done":
                 run_summary["completed"].append(task_with_result)
             elif result["status"] == "blocked":
+                dependency_attempted = False
                 # Try to automatically resolve dependency blocker
                 if not dry_run and task.get("depends_on"):
+                    dependency_attempted = True
                     if attempt_blocker_resolution(task, tasks, project_name, config, system_files):
                         # Retry original task
                         result = execute_task(task, project_name, config, system_files, dry_run=dry_run)
@@ -1741,6 +1850,14 @@ def run(args):
 
                         # Recompute task_with_result with new result
                         task_with_result = {**task, **result}
+                if not dry_run and result["status"] == "blocked":
+                    depends_on = task.get("depends_on")
+                    unresolved_dependency = True
+                    if depends_on:
+                        dep_task = next((t for t in tasks if t.get("id") == depends_on), None)
+                        unresolved_dependency = bool(dep_task and dep_task.get("status") != "done")
+                    if not unresolved_dependency:
+                        add_pending_approval(config, task, project_name, result)
 
                 # Append to appropriate bucket based on final result
                 if result["status"] == "done":
@@ -1788,11 +1905,12 @@ def main():
     parser.add_argument("--once", action="store_true", help="Execute only first task")
     parser.add_argument("--dry-run", action="store_true", help="Simulate without changes")
     parser.add_argument("--status", action="store_true", help="Show system status (no execution)")
+    parser.add_argument("--approval", nargs="?", const="list")
 
     args = parser.parse_args()
 
     # Validate args
-    if not args.all and not args.project:
+    if not args.all and not args.project and not args.status and args.approval is None:
         parser.error("Must specify --project or --all")
 
     run(args)
