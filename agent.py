@@ -1739,7 +1739,17 @@ def run(args):
                 if result["status"] == "done":
                     run_summary["completed"].append(task_with_result)
                 else:
-                    run_summary["blocked"].append(task_with_result)
+                    reason = (
+                        task_with_result.get("error")
+                        or task.get("notes")
+                        or task.get("depends_on")
+                        or "unknown"
+                    )
+
+                    run_summary["blocked"].append({
+                        **task_with_result,
+                        "block_reason": str(reason).split("\n")[0]
+                    })
             else:
                 run_summary["skipped"].append(task_with_result)
 
@@ -1751,6 +1761,10 @@ def run(args):
     print(f"\n=== RUN SUMMARY ===")
     print(f"Completed: {len(run_summary['completed'])}")
     print(f"Blocked: {len(run_summary['blocked'])}")
+    if run_summary["blocked"]:
+        print("\nBlocked tasks:")
+        for t in run_summary["blocked"]:
+            print(f"  {t.get('id')} — {t.get('block_reason')}")
     print(f"Skipped: {len(run_summary['skipped'])}")
 
 
