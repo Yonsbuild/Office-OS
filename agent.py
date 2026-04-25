@@ -1562,6 +1562,13 @@ For code: use paths relative to the project code directory
                 else:
                     print(f"WARNING: Failed to checkout {default_branch} after task {task_id}: {stderr}", file=sys.stderr)
 
+    if not result.get("summary"):
+        if result.get("status") == "done":
+            result["summary"] = task.get("description") or task.get("id")
+        elif result.get("status") == "blocked":
+            result["summary"] = result.get("error") or "blocked"
+        else:
+            result["summary"] = "skipped"
     return result
 
 
