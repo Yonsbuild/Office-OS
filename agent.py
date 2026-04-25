@@ -1153,6 +1153,146 @@ def add_pending_approval(config, task, project_name, result):
     save_pending_approvals(config, pending)
 
 
+def send_notification(message):
+    """Minimal notification hook."""
+    print(f"[NOTIFY] {message}")
+
+
+# ============================================================================
+# MAINTENANCE MODE
+# ============================================================================
+
+def _iter_project_repos(config):
+    """Yield unique project code paths that exist and contain git metadata."""
+    seen = set()
+    for project_config in config.get("projects", {}).values():
+        code_value = project_config.get("code")
+        if not code_value:
+            continue
+        code_path = Path(code_value)
+        if not code_path.exists():
+            continue
+        resolved = str(code_path.resolve())
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        yield code_path
+
+
+def _cleanup_merged_branches(code_path):
+    """Delete merged local branches except main/master."""
+    success, stdout, _ = run_git(code_path, "branch", "--merged")
+    if not success:
+        return 0
+
+    deleted = 0
+    for raw_line in stdout.splitlines():
+        branch = raw_line.replace("*", "").strip()
+        if not branch or branch in {"main", "master"}:
+            continue
+        # Safe delete only merged branches; ignore failures.
+        branch_deleted, _, _ = run_git(code_path, "branch", "-d", branch)
+        if branch_deleted:
+            deleted += 1
+    return deleted
+
+
+def _find_cleanup_candidates(code_path):
+    """
+    Identify safe cleanup candidates only (no deletion):
+    - stale files (old mtime heuristic)
+    - duplicate file names
+    - obvious temp/test artifacts
+    """
+    now = datetime.datetime.now().timestamp()
+    stale_days = 90
+    stale_threshold = stale_days * 24 * 60 * 60
+
+    files_by_name = {}
+    candidates = set()
+
+    for file_path in code_path.rglob("*"):
+        if not file_path.is_file():
+            continue
+
+        rel = str(file_path.relative_to(code_path))
+        if rel.startswith(".git/") or "/.git/" in rel:
+            continue
+
+        files_by_name.setdefault(file_path.name, []).append(rel)
+
+        try:
+            age_seconds = now - file_path.stat().st_mtime
+        except OSError:
+            continue
+
+        rel_lower = rel.lower()
+        name_lower = file_path.name.lower()
+        obvious_temp = (
+            "tmp" in name_lower
+            or "temp" in name_lower
+            or name_lower.endswith((".bak", ".old", ".orig", ".tmp"))
+        )
+        obvious_test_artifact = name_lower.startswith("test_") and age_seconds > stale_threshold
+
+        if age_seconds > stale_threshold and (obvious_temp or obvious_test_artifact):
+            if obvious_temp:
+                candidates.add(f"unused file: {rel}")
+            else:
+                candidates.add(f"stale script: {rel}")
+
+    # Low-signal duplicate filename detection.
+    for name, rel_paths in files_by_name.items():
+        if len(rel_paths) > 1:
+            joined = ", ".join(sorted(rel_paths)[:3])
+            candidates.add(f"duplicate filename '{name}': {joined}")
+
+    return sorted(candidates)
+
+
+def _append_cleanup_findings(memory_path, candidates):
+    """Append cleanup candidates to project memory file."""
+    if not candidates:
+        return
+
+    memory_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(memory_path, "a") as f:
+        f.write("\ncleanup candidates:\n")
+        for candidate in candidates:
+            f.write(f"- {candidate}\n")
+
+
+def run_maintenance(config):
+    """
+    Run deterministic maintenance tasks:
+    - clean merged branches
+    - log cleanup candidates to memory files
+    """
+    result = {
+        "branches_cleaned": 0,
+        "cleanup_candidates": []
+    }
+
+    for code_path in _iter_project_repos(config):
+        result["branches_cleaned"] += _cleanup_merged_branches(code_path)
+
+    for project_name, project_config in config.get("projects", {}).items():
+        code_value = project_config.get("code")
+        if not code_value:
+            continue
+        code_path = Path(code_value)
+        if not code_path.exists():
+            continue
+
+        candidates = _find_cleanup_candidates(code_path)
+        if candidates:
+            memory_path = config["repo_root"] / project_config["memory"]
+            _append_cleanup_findings(memory_path, candidates)
+            result["cleanup_candidates"].extend([f"{project_name}: {c}" for c in candidates])
+
+    return result
+
+
 # ============================================================================
 # DAILY BRIEF
 # ============================================================================
@@ -1268,6 +1408,13 @@ def _build_brief_entry(time_str, run_summary, pending_approvals=None):
         lines.append("Approvals needed:")
         for approval in pending_approvals:
             lines.append(f"  {approval.get('task_id', 'unknown')} — {approval.get('issue', 'blocked')}")
+
+    maintenance = run_summary.get("maintenance")
+    if maintenance:
+        lines.append("")
+        lines.append("Maintenance:")
+        lines.append(f"- cleaned {maintenance.get('branches_cleaned', 0)} branches")
+        lines.append(f"- flagged {len(maintenance.get('cleanup_candidates', []))} cleanup candidates")
 
     lines.append("")
     return "\n".join(lines)
@@ -1682,6 +1829,8 @@ def run(args):
     """
     config = load_config()
     pending_approvals = load_pending_approvals(config)
+    if pending_approvals:
+        send_notification(f"{len(pending_approvals)} approvals pending")
 
     if args.approval is not None:
         if args.approval == "list":
@@ -1807,6 +1956,7 @@ def run(args):
     }
 
     # Execute tasks
+    any_executable_work = False
     for project_name in projects_to_run:
         if project_name not in config["projects"]:
             print(f"ERROR: Project '{project_name}' not found in configuration", file=sys.stderr)
@@ -1814,6 +1964,8 @@ def run(args):
 
         tasks = load_tasks(config, project_name)
         executable = get_next_tasks(tasks)
+        if executable:
+            any_executable_work = True
 
         max_tasks = 1 if once else 3
         executed = 0
@@ -1876,6 +2028,11 @@ def run(args):
                     })
             else:
                 run_summary["skipped"].append(task_with_result)
+
+    if not dry_run and not any_executable_work:
+        maintenance_result = run_maintenance(config)
+        run_summary["maintenance"] = maintenance_result
+        send_notification("maintenance cycle completed")
 
     # Write brief
     if not dry_run:
