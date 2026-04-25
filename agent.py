@@ -1828,6 +1828,31 @@ def run(args):
     Parse CLI args, load config, execute tasks, write brief.
     """
     config = load_config()
+
+    if args.run:
+        args.all = True
+
+    if args.approvals:
+        args.approval = "list"
+
+    if args.approve:
+        args.approval = args.approve
+
+    if args.brief or args.logs:
+        briefs_dir = config["repo_root"] / "briefs"
+        if not briefs_dir.exists():
+            print("No briefs found.")
+            return
+
+        brief_files = sorted(briefs_dir.glob("*.md"), key=lambda p: p.stat().st_mtime)
+        if not brief_files:
+            print("No briefs found.")
+            return
+
+        latest_brief = brief_files[-1]
+        print(latest_brief.read_text())
+        return
+
     pending_approvals = load_pending_approvals(config)
     if pending_approvals:
         send_notification(f"{len(pending_approvals)} approvals pending")
@@ -2063,11 +2088,26 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Simulate without changes")
     parser.add_argument("--status", action="store_true", help="Show system status (no execution)")
     parser.add_argument("--approval", nargs="?", const="list")
+    parser.add_argument("--run", action="store_true")
+    parser.add_argument("--brief", action="store_true")
+    parser.add_argument("--approvals", action="store_true")
+    parser.add_argument("--approve", type=str)
+    parser.add_argument("--logs", action="store_true")
 
     args = parser.parse_args()
 
     # Validate args
-    if not args.all and not args.project and not args.status and args.approval is None:
+    if (
+        not args.all
+        and not args.project
+        and not args.status
+        and args.approval is None
+        and not args.run
+        and not args.brief
+        and not args.approvals
+        and args.approve is None
+        and not args.logs
+    ):
         parser.error("Must specify --project or --all")
 
     run(args)
