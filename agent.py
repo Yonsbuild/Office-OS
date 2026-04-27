@@ -217,6 +217,32 @@ def print_state_status(config):
     if pending_count > 0:
         warnings.append(f"pending approvals: {pending_count}")
 
+    # Proposals health (read-only)
+    print("\n[proposals]")
+    proposals_file = repo_root / "proposals" / "pending.json"
+    pending_proposal_count = 0
+    malformed_proposals = False
+    if proposals_file.exists():
+        try:
+            with open(proposals_file) as f:
+                proposals_data = json.load(f)
+            if isinstance(proposals_data, list):
+                pending_proposal_count = len([p for p in proposals_data if p.get("status") == "pending"])
+                print(f"- pending proposals: {pending_proposal_count}")
+            else:
+                malformed_proposals = True
+                print("- pending proposals: malformed (expected list)")
+        except Exception:
+            malformed_proposals = True
+            print("- pending proposals: malformed (invalid JSON)")
+    else:
+        print("- pending proposals file: missing")
+
+    if malformed_proposals:
+        warnings.append("malformed proposals file")
+    if pending_proposal_count > 0:
+        warnings.append(f"pending proposals: {pending_proposal_count}")
+
     # Maintenance / bacteria activity signals
     print("\n[maintenance / bacteria]")
     maintenance_signals = []
@@ -943,7 +969,17 @@ def parse_and_apply_changes(code_path, llm_response, config):
             mode = enforce_write_policy(file_path, action, config)
 
             if mode == "propose":
+                proposal = {
+                    "project": None,
+                    "source": "parse_and_apply_changes",
+                    "target_path": str(file_path.resolve()),
+                    "relative_path": file_path_str,
+                    "action": action,
+                    "content": content,
+                }
+                proposal_id = add_pending_proposal(config, proposal)
                 print(f"[WRITE_POLICY] Intercepted external write proposal: {file_path_str} ({action})")
+                print(f"[WRITE_POLICY] Saved proposal {proposal_id}")
                 continue
 
             if action == "create" or action == "modify":
@@ -1000,7 +1036,17 @@ def extract_memory_changes(repo_root, llm_response, project_name, config):
             mode = enforce_write_policy(full_path, action, config)
 
             if mode == "propose":
+                proposal = {
+                    "project": project_name,
+                    "source": "extract_memory_changes",
+                    "target_path": str(full_path.resolve()),
+                    "relative_path": file_path_str,
+                    "action": action,
+                    "content": content,
+                }
+                proposal_id = add_pending_proposal(config, proposal)
                 print(f"[WRITE_POLICY] Intercepted external write proposal: {file_path_str} ({action})")
+                print(f"[WRITE_POLICY] Saved proposal {proposal_id}")
                 continue
 
             if action == "create" or action == "modify":
@@ -1325,6 +1371,61 @@ def save_pending_approvals(config, approvals):
     approvals_file = config["repo_root"] / "approvals" / "pending.json"
     with open(approvals_file, "w") as f:
         json.dump(approvals, f, indent=2)
+
+
+def load_pending_proposals(config):
+    """Load proposals/pending.json, creating it as [] if missing."""
+    proposals_dir = config["repo_root"] / "proposals"
+    proposals_dir.mkdir(exist_ok=True)
+    proposals_file = proposals_dir / "pending.json"
+
+    if not proposals_file.exists():
+        with open(proposals_file, "w") as f:
+            json.dump([], f, indent=2)
+        return []
+
+    try:
+        with open(proposals_file) as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+
+def save_pending_proposals(config, proposals):
+    """Persist proposals/pending.json."""
+    proposals_dir = config["repo_root"] / "proposals"
+    proposals_dir.mkdir(exist_ok=True)
+    proposals_file = proposals_dir / "pending.json"
+    with open(proposals_file, "w") as f:
+        json.dump(proposals, f, indent=2)
+
+
+def add_pending_proposal(config, proposal):
+    """Create a single pending proposal and return the proposal id."""
+    pending = load_pending_proposals(config)
+
+    max_id = 0
+    for existing in pending:
+        proposal_id = str(existing.get("id", ""))
+        if proposal_id.startswith("P") and proposal_id[1:].isdigit():
+            max_id = max(max_id, int(proposal_id[1:]))
+
+    next_id = f"P{max_id + 1:03d}"
+    full_proposal = {
+        "id": next_id,
+        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "project": proposal.get("project"),
+        "source": proposal.get("source", "unknown"),
+        "target_path": proposal.get("target_path"),
+        "relative_path": proposal.get("relative_path"),
+        "action": proposal.get("action"),
+        "content": proposal.get("content", ""),
+        "status": "pending",
+    }
+    pending.append(full_proposal)
+    save_pending_proposals(config, pending)
+    return next_id
 
 
 def add_pending_approval(config, task, project_name, result):
@@ -2133,6 +2234,15 @@ def run(args):
     if args.approve:
         args.approval = args.approve
 
+    proposal_cmd = None
+    proposal_reject_cmd = None
+    if args.approve_proposal:
+        proposal_cmd = args.approve_proposal
+    if args.reject_proposal:
+        proposal_reject_cmd = args.reject_proposal
+    if args.proposals:
+        proposal_cmd = "list"
+
     if args.state_status:
         print_state_status(config)
         return
@@ -2155,6 +2265,10 @@ def run(args):
     pending_approvals = load_pending_approvals(config)
     if pending_approvals:
         send_notification(f"{len(pending_approvals)} approvals pending")
+    pending_proposals = load_pending_proposals(config)
+    pending_proposal_count = len([p for p in pending_proposals if p.get("status") == "pending"])
+    if pending_proposal_count:
+        send_notification(f"{pending_proposal_count} proposals pending")
 
     if args.approval is not None:
         if args.approval == "list":
@@ -2196,6 +2310,40 @@ def run(args):
         pending_approvals = pending_approvals[1:]
         save_pending_approvals(config, pending_approvals)
         print(f"Applied approval {selected} to {project_name}/{task_id}")
+        return
+
+    if proposal_cmd is not None:
+        if proposal_cmd == "list":
+            print("\nPending proposals:")
+            pending_list = [p for p in pending_proposals if p.get("status") == "pending"]
+            if pending_list:
+                for proposal in pending_list:
+                    print(f"  {proposal.get('id')} ({proposal.get('action')}) — {proposal.get('relative_path')}")
+            else:
+                print("  no pending proposals")
+            return
+
+        proposal_id = proposal_cmd.upper()
+        proposal = next((p for p in pending_proposals if p.get("id", "").upper() == proposal_id), None)
+        if not proposal:
+            print(f"Proposal not found: {proposal_id}")
+            return
+
+        proposal["status"] = "approved"
+        save_pending_proposals(config, pending_proposals)
+        print("Proposal approval recorded; application not implemented yet.")
+        return
+
+    if proposal_reject_cmd is not None:
+        proposal_id = proposal_reject_cmd.upper()
+        proposal = next((p for p in pending_proposals if p.get("id", "").upper() == proposal_id), None)
+        if not proposal:
+            print(f"Proposal not found: {proposal_id}")
+            return
+
+        proposal["status"] = "rejected"
+        save_pending_proposals(config, pending_proposals)
+        print(f"Rejected proposal {proposal_id}")
         return
 
     if args.status:
@@ -2400,6 +2548,9 @@ def main():
     parser.add_argument("--brief", action="store_true")
     parser.add_argument("--approvals", action="store_true")
     parser.add_argument("--approve", type=str)
+    parser.add_argument("--proposals", action="store_true")
+    parser.add_argument("--approve-proposal", type=str)
+    parser.add_argument("--reject-proposal", type=str)
     parser.add_argument("--logs", action="store_true")
 
     args = parser.parse_args()
@@ -2415,6 +2566,9 @@ def main():
         and not args.brief
         and not args.approvals
         and args.approve is None
+        and not args.proposals
+        and args.approve_proposal is None
+        and args.reject_proposal is None
         and not args.logs
     ):
         parser.error("Must specify --project or --all")
