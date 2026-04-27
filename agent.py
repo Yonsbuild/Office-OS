@@ -456,30 +456,25 @@ def run_manager(config):
     brief_file = repo_root / "briefs" / f"{today}.md"
 
     all_tasks = _load_all_tasks_with_metadata(config)
+    records_by_id = {}
+    for record in all_tasks:
+        task_id = record["task"].get("id")
+        if task_id and task_id not in records_by_id:
+            records_by_id[task_id] = record
+
     done_ids = {r["task"].get("id") for r in all_tasks if r["task"].get("status") == "done"}
 
     type_order = {"sales": 0, "ops": 1, "engineering": 2, "maintenance": 3}
     candidates = []
+    candidate_ids = set()
+    dependency_messages = []
     rejection_reason = "no open executable tasks"
 
-    for record in all_tasks:
+    def _add_candidate(record):
         task = record["task"]
-        status = (task.get("status") or "").lower()
-        if status != "open":
-            continue
-
-        if (task.get("blocked") is True) or ((task.get("notes") or "").lower().startswith("blocked")):
-            rejection_reason = "all open tasks are blocked"
-            continue
-
-        depends_on = task.get("depends_on")
-        if depends_on and depends_on not in done_ids:
-            rejection_reason = "open tasks have unmet dependencies"
-            continue
-
-        if _task_requires_approval_or_proposal(task):
-            rejection_reason = "open tasks currently require approval/proposal application"
-            continue
+        task_id = task.get("id")
+        if not task_id or task_id in candidate_ids:
+            return
 
         task_type = (task.get("type") or "").lower() or None
         has_assignee = bool(task.get("assignee"))
@@ -494,6 +489,58 @@ def run_manager(config):
             task.get("id", ""),
         )
         candidates.append((sort_key, record))
+        candidate_ids.add(task_id)
+
+    def _passes_manager_filters(task):
+        nonlocal rejection_reason
+
+        status = (task.get("status") or "").lower()
+        if status != "open":
+            return False
+
+        if (task.get("blocked") is True) or ((task.get("notes") or "").lower().startswith("blocked")):
+            rejection_reason = "all open tasks are blocked"
+            return False
+
+        if _task_requires_approval_or_proposal(task):
+            rejection_reason = "open tasks currently require approval/proposal application"
+            return False
+
+        return True
+
+    for record in all_tasks:
+        task = record["task"]
+        if not _passes_manager_filters(task):
+            continue
+
+        depends_on = task.get("depends_on")
+        if depends_on and depends_on not in done_ids:
+            dependency_record = records_by_id.get(depends_on)
+            if not dependency_record:
+                msg = f"missing dependency: {depends_on}"
+                dependency_messages.append(msg)
+                print(msg)
+                rejection_reason = "open tasks have unmet dependencies"
+                continue
+
+            dependency_task = dependency_record["task"]
+            dependency_status = (dependency_task.get("status") or "").lower()
+
+            if dependency_status == "blocked":
+                msg = f"dependency blocked: {depends_on}"
+                dependency_messages.append(msg)
+                print(msg)
+                rejection_reason = "open tasks have unmet dependencies"
+                continue
+
+            if dependency_status == "open" and _passes_manager_filters(dependency_task):
+                _add_candidate(dependency_record)
+                continue
+
+            rejection_reason = "open tasks have unmet dependencies"
+            continue
+
+        _add_candidate(record)
 
     selected = None
     reason = rejection_reason
@@ -547,6 +594,10 @@ def run_manager(config):
         else:
             f.write("- no executable task selected\n")
             f.write(f"- reason: {reason}\n\n")
+        for message in dependency_messages:
+            f.write(f"- {message}\n")
+        if dependency_messages:
+            f.write("\n")
 
     print("MANAGER")
     if selected:
