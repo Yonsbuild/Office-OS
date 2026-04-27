@@ -348,6 +348,34 @@ def load_tasks(config, project_name):
     return all_tasks
 
 
+def _load_all_tasks_with_metadata(config):
+    """
+    Load all task YAML files for configured projects.
+    Returns list of dicts: {"task": task_dict, "task_file": Path}.
+    """
+    repo_root = config["repo_root"]
+    task_records = []
+
+    for project_name, project_config in config.get("projects", {}).items():
+        prefix = project_config.get("tasks_prefix")
+        if not prefix:
+            continue
+
+        for task_file in sorted((repo_root / "tasks").glob(f"{prefix}-*.yaml")):
+            try:
+                with open(task_file) as f:
+                    data = yaml.safe_load(f) or {}
+            except Exception as e:
+                print(f"WARNING: Failed to load {task_file}: {e}", file=sys.stderr)
+                continue
+
+            for task in data.get("tasks", []):
+                if isinstance(task, dict):
+                    task_records.append({"task": task, "task_file": task_file})
+
+    return task_records
+
+
 def get_next_tasks(tasks):
     """
     Filter to open tasks.
@@ -375,6 +403,161 @@ def get_next_tasks(tasks):
                     executable.append(task)
 
     return executable
+
+
+def _task_requires_approval_or_proposal(task):
+    """
+    Best-effort check for tasks that require approval/proposal application.
+    """
+    if task.get("requires_approval") is True or task.get("requires_proposal") is True:
+        return True
+
+    text = " ".join(
+        str(task.get(field, "") or "")
+        for field in ("notes", "description", "acceptance_criteria")
+    ).lower()
+    markers = (
+        "approval required",
+        "requires approval",
+        "founder approval",
+        "escalation required",
+        "proposal application",
+        "apply proposal",
+        "requires proposal",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _infer_assignee_from_project(project_name):
+    project = (project_name or "").lower()
+    if "sales" in project:
+        return "sales.outreach_writer"
+    if "maintenance" in project:
+        return "maintenance.bacteria"
+    if "ops" in project:
+        return "ops.builder"
+    if project in {"lumen", "merlin", "shoptrack", "office-os"}:
+        return "ops.builder"
+    return "manager.review"
+
+
+def run_manager(config):
+    """
+    Decision-only manager cycle:
+    READ -> SELECT -> ASSIGN -> LOG.
+    """
+    repo_root = config["repo_root"]
+    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    today = datetime.date.today().isoformat()
+
+    _ = load_pending_approvals(config)
+    _ = load_pending_proposals(config)
+
+    brief_file = repo_root / "briefs" / f"{today}.md"
+
+    all_tasks = _load_all_tasks_with_metadata(config)
+    done_ids = {r["task"].get("id") for r in all_tasks if r["task"].get("status") == "done"}
+
+    type_order = {"sales": 0, "ops": 1, "engineering": 2, "maintenance": 3}
+    candidates = []
+    rejection_reason = "no open executable tasks"
+
+    for record in all_tasks:
+        task = record["task"]
+        status = (task.get("status") or "").lower()
+        if status != "open":
+            continue
+
+        if (task.get("blocked") is True) or ((task.get("notes") or "").lower().startswith("blocked")):
+            rejection_reason = "all open tasks are blocked"
+            continue
+
+        depends_on = task.get("depends_on")
+        if depends_on and depends_on not in done_ids:
+            rejection_reason = "open tasks have unmet dependencies"
+            continue
+
+        if _task_requires_approval_or_proposal(task):
+            rejection_reason = "open tasks currently require approval/proposal application"
+            continue
+
+        task_type = (task.get("type") or "").lower() or None
+        has_assignee = bool(task.get("assignee"))
+        priority = task.get("priority", 999)
+        if not isinstance(priority, int):
+            priority = 999
+
+        sort_key = (
+            0 if not has_assignee else 1,
+            type_order.get(task_type, 99),
+            priority,
+            task.get("id", ""),
+        )
+        candidates.append((sort_key, record))
+
+    selected = None
+    reason = rejection_reason
+    if candidates:
+        candidates.sort(key=lambda x: x[0])
+        selected = candidates[0][1]
+        task = selected["task"]
+
+        task_type = (task.get("type") or "").lower() or None
+        assignee_map = {
+            "sales": "sales.outreach_writer",
+            "ops": "ops.builder",
+            "engineering": "ops.builder",
+            "maintenance": "maintenance.bacteria",
+        }
+
+        if not task.get("assignee"):
+            task["assignee"] = assignee_map.get(task_type) or _infer_assignee_from_project(task.get("project"))
+
+        task["manager_selected_at"] = now_iso
+        reason = "first open executable task prioritized by unassigned + type order"
+        task["manager_reason"] = reason
+
+        task_file = selected["task_file"]
+        with open(task_file) as f:
+            data = yaml.safe_load(f) or {}
+        for existing in data.get("tasks", []):
+            if existing.get("id") == task.get("id"):
+                existing["assignee"] = task.get("assignee")
+                existing["manager_selected_at"] = task.get("manager_selected_at")
+                existing["manager_reason"] = task.get("manager_reason")
+                break
+        with open(task_file, "w") as f:
+            yaml.safe_dump(data, f, sort_keys=False)
+
+    brief_file.parent.mkdir(exist_ok=True)
+    if not brief_file.exists():
+        with open(brief_file, "w") as f:
+            f.write(f"# Daily Brief — {today}\n\n")
+
+    with open(brief_file, "a") as f:
+        f.write("Manager:\n")
+        if selected:
+            task = selected["task"]
+            task_type = task.get("type") or "unknown"
+            f.write(f"- selected task: {task.get('id')}\n")
+            f.write(f"- project: {task.get('project', 'unknown')}\n")
+            f.write(f"- type: {task_type}\n")
+            f.write(f"- assignee: {task.get('assignee')}\n")
+            f.write(f"- reason: {reason}\n\n")
+        else:
+            f.write("- no executable task selected\n")
+            f.write(f"- reason: {reason}\n\n")
+
+    print("MANAGER")
+    if selected:
+        task = selected["task"]
+        print(f"selected: {task.get('id')}")
+        print(f"project: {task.get('project', 'unknown')}")
+        print(f"assignee: {task.get('assignee')}")
+        print(f"reason: {reason}")
+    else:
+        print("selected: none")
+        print(f"reason: {reason}")
 
 
 def load_relevant_code(code_path, task_description, max_tokens=50000):
@@ -2247,6 +2430,10 @@ def run(args):
         print_state_status(config)
         return
 
+    if args.manager:
+        run_manager(config)
+        return
+
     if args.brief or args.logs:
         briefs_dir = config["repo_root"] / "briefs"
         if not briefs_dir.exists():
@@ -2552,6 +2739,7 @@ def main():
     parser.add_argument("--approve-proposal", type=str)
     parser.add_argument("--reject-proposal", type=str)
     parser.add_argument("--logs", action="store_true")
+    parser.add_argument("--manager", action="store_true", help="Run manager decision cycle only")
 
     args = parser.parse_args()
 
@@ -2570,6 +2758,7 @@ def main():
         and args.approve_proposal is None
         and args.reject_proposal is None
         and not args.logs
+        and not args.manager
     ):
         parser.error("Must specify --project or --all")
 
