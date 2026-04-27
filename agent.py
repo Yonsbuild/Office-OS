@@ -611,6 +611,433 @@ def run_manager(config):
         print(f"reason: {reason}")
 
 
+def _truncate_text(text, max_chars):
+    """Return text capped to max_chars (hard cap)."""
+    if not text:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars]
+
+
+def _safe_git_info_for_project(code_path):
+    """
+    Read compact git metadata for manager planning packet.
+    Returns branch/dirty/last_commit cheaply if available.
+    """
+    info = {
+        "code_path_exists": False,
+        "git_branch": None,
+        "git_dirty": None,
+        "last_commit_subject": None,
+    }
+
+    if not code_path:
+        return info
+
+    resolved = Path(code_path).expanduser()
+    if not resolved.exists():
+        return info
+
+    info["code_path_exists"] = True
+
+    ok, branch_out, _ = run_git(resolved, "branch", "--show-current")
+    if ok and branch_out:
+        info["git_branch"] = branch_out.strip()
+
+    ok, status_out, _ = run_git(resolved, "status", "--porcelain")
+    if ok:
+        info["git_dirty"] = bool((status_out or "").strip())
+
+    ok, commit_out, _ = run_git(resolved, "log", "-1", "--pretty=%s")
+    if ok and commit_out:
+        info["last_commit_subject"] = commit_out.strip()
+
+    return info
+
+
+def _build_state_status_summary(config):
+    """
+    Build compact --state-status equivalent summary object (no broad scans).
+    """
+    repo_root = config["repo_root"]
+    now = datetime.datetime.now().timestamp()
+    stale_threshold_days = 3
+    stale_seconds = stale_threshold_days * 24 * 60 * 60
+    missing_memory = []
+    stale_memory = []
+    malformed_task_files = 0
+
+    for project_name, project_config in sorted(config.get("projects", {}).items()):
+        memory_rel = project_config.get("memory", f"projects/{project_name}/memory.md")
+        memory_path = repo_root / memory_rel
+        if not memory_path.exists():
+            missing_memory.append(project_name)
+            continue
+        age_seconds = max(0, now - memory_path.stat().st_mtime)
+        if age_seconds > stale_seconds:
+            stale_memory.append(project_name)
+
+    tasks_dir = repo_root / "tasks"
+    task_files = sorted(tasks_dir.glob("*.yaml")) if tasks_dir.exists() else []
+    for task_file in task_files:
+        try:
+            with open(task_file) as f:
+                data = yaml.safe_load(f) or {}
+            if not isinstance(data, dict) or not isinstance(data.get("tasks"), list):
+                malformed_task_files += 1
+        except Exception:
+            malformed_task_files += 1
+
+    warnings = []
+    if missing_memory:
+        warnings.append(f"missing memory files: {', '.join(missing_memory)}")
+    if stale_memory:
+        warnings.append(f"stale memory files (> {stale_threshold_days}d): {', '.join(stale_memory)}")
+    if not task_files:
+        warnings.append("no tasks found")
+    if malformed_task_files:
+        warnings.append(f"malformed task files: {malformed_task_files}")
+
+    return {
+        "timestamp_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "memory": {
+            "missing_projects": missing_memory,
+            "stale_projects": stale_memory,
+        },
+        "task_queue": {
+            "task_file_count": len(task_files),
+            "malformed_task_files": malformed_task_files,
+        },
+        "warnings": warnings,
+    }
+
+
+def _summarize_project_tasks(tasks):
+    """Return per-status counts and top 3 open/blocked tasks."""
+    open_tasks = [t for t in tasks if (t.get("status") or "").lower() == "open"]
+    blocked_tasks = [t for t in tasks if (t.get("status") or "").lower() == "blocked"]
+    done_tasks = [t for t in tasks if (t.get("status") or "").lower() == "done"]
+
+    def _top_three(items):
+        sorted_items = sorted(
+            items,
+            key=lambda t: (t.get("priority", 999) if isinstance(t.get("priority"), int) else 999, t.get("id", "")),
+        )
+        output = []
+        for task in sorted_items[:3]:
+            output.append(
+                {
+                    "id": task.get("id"),
+                    "priority": task.get("priority"),
+                    "description": _truncate_text(task.get("description", ""), 220),
+                }
+            )
+        return output
+
+    return {
+        "counts": {
+            "open": len(open_tasks),
+            "blocked": len(blocked_tasks),
+            "done": len(done_tasks),
+        },
+        "top_open_tasks": _top_three(open_tasks),
+        "top_blocked_tasks": _top_three(blocked_tasks),
+    }
+
+
+def _latest_brief_excerpt(repo_root, max_chars=2000):
+    """Return latest brief excerpt and metadata if any brief exists."""
+    briefs_dir = repo_root / "briefs"
+    if not briefs_dir.exists():
+        return None
+    brief_files = sorted(briefs_dir.glob("*.md"), key=lambda p: p.stat().st_mtime)
+    if not brief_files:
+        return None
+    latest = brief_files[-1]
+    try:
+        text = latest.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return None
+    return {
+        "file": latest.name,
+        "excerpt": _truncate_text(text, max_chars),
+    }
+
+
+def _build_manager_plan_packet(config):
+    """
+    Build compact manager planning packet under strict context limits.
+    """
+    repo_root = config["repo_root"]
+    today = datetime.date.today().isoformat()
+    approvals = load_pending_approvals(config)
+    proposals = load_pending_proposals(config)
+    pending_proposals = [p for p in proposals if p.get("status") == "pending"]
+    today_brief_exists = (repo_root / "briefs" / f"{today}.md").exists()
+
+    packet = {
+        "state_status_summary": _build_state_status_summary(config),
+        "task_queue_summary": {},
+        "pending_approvals_count": len(approvals),
+        "pending_proposals_count": len(pending_proposals),
+        "today_brief_exists": today_brief_exists,
+        "latest_brief_excerpt": _latest_brief_excerpt(repo_root, max_chars=2000),
+    }
+
+    total_counts = {"open": 0, "blocked": 0, "done": 0}
+    for project_name, project_config in sorted(config.get("projects", {}).items()):
+        tasks = load_tasks(config, project_name)
+        task_summary = _summarize_project_tasks(tasks)
+        for key in total_counts:
+            total_counts[key] += task_summary["counts"][key]
+
+        memory_text = load_memory(config, project_name)
+        memory_excerpt = _truncate_text(memory_text, 1500)
+
+        code_config = project_config.get("code")
+        if code_config == ".":
+            code_path = repo_root
+        else:
+            code_path = code_config
+
+        packet["task_queue_summary"][project_name] = {
+            **task_summary,
+            "project_context": _safe_git_info_for_project(code_path),
+            "memory_excerpt": memory_excerpt,
+        }
+
+    packet["task_queue_totals"] = total_counts
+    return packet
+
+
+def _manager_plan_system_prompt():
+    return """You are the Office OS manager planner.
+Generate manager tasks only; do not execute work.
+Hard constraints:
+- no external repo writes
+- no file deletes
+- no proposal application
+- no approval application
+- no worker execution
+- no code mutation
+- if more context is needed, create a targeted inspection task instead
+Return strict JSON only with this schema:
+{
+  "generated_tasks": [
+    {
+      "project": "office-os|lumen|merlin|sales|shoptrack",
+      "type": "management|sales|ops|engineering|maintenance",
+      "priority": 1,
+      "assignee": "manager.review|ops.builder|sales.outreach_writer|maintenance.bacteria",
+      "description": "...",
+      "acceptance_criteria": ["..."],
+      "reason": "..."
+    }
+  ],
+  "summary": "..."
+}
+Limit to at most 3 generated tasks."""
+
+
+def _validate_generated_manager_task(task):
+    """Validate and normalize generated manager task shape."""
+    allowed_projects = {"office-os", "lumen", "merlin", "sales", "shoptrack"}
+    allowed_types = {"management", "sales", "ops", "engineering", "maintenance"}
+    allowed_assignees = {"manager.review", "ops.builder", "sales.outreach_writer", "maintenance.bacteria"}
+
+    if not isinstance(task, dict):
+        return None
+    if task.get("project") not in allowed_projects:
+        return None
+    if task.get("type") not in allowed_types:
+        return None
+    if task.get("assignee") not in allowed_assignees:
+        return None
+    if not isinstance(task.get("priority"), int):
+        return None
+    if not isinstance(task.get("description"), str) or not task.get("description").strip():
+        return None
+    criteria = task.get("acceptance_criteria")
+    if not isinstance(criteria, list) or not criteria or not all(isinstance(x, str) and x.strip() for x in criteria):
+        return None
+    if not isinstance(task.get("reason"), str) or not task.get("reason").strip():
+        return None
+
+    return {
+        "project": task["project"],
+        "type": task["type"],
+        "priority": task["priority"],
+        "assignee": task["assignee"],
+        "description": task["description"].strip(),
+        "acceptance_criteria": [c.strip() for c in criteria],
+        "reason": task["reason"].strip(),
+    }
+
+
+def _load_existing_manager_tasks(repo_root):
+    """Load all existing manager tasks for deduplication and ID generation."""
+    records = []
+    for task_file in sorted((repo_root / "tasks").glob("manager-*.yaml")):
+        try:
+            with open(task_file) as f:
+                data = yaml.safe_load(f) or {}
+        except Exception:
+            continue
+        for task in data.get("tasks", []):
+            if isinstance(task, dict):
+                records.append(task)
+    return records
+
+
+def _persist_manager_tasks(config, generated_tasks):
+    """Append generated manager tasks to today's manager task file."""
+    repo_root = config["repo_root"]
+    today = datetime.date.today().isoformat()
+    task_file = repo_root / "tasks" / f"manager-{today}.yaml"
+
+    data = {}
+    if task_file.exists():
+        try:
+            with open(task_file) as f:
+                data = yaml.safe_load(f) or {}
+        except Exception:
+            data = {}
+    if not isinstance(data, dict):
+        data = {}
+    if not isinstance(data.get("tasks"), list):
+        data["tasks"] = []
+
+    existing = _load_existing_manager_tasks(repo_root)
+    existing_descriptions = {
+        (t.get("description") or "").strip().lower()
+        for t in existing
+        if (t.get("status") or "").lower() != "done"
+    }
+
+    # ID counter uses existing manager IDs when possible.
+    max_seq = 0
+    for task in existing:
+        task_id = str(task.get("id", ""))
+        m = re.match(r"manager-(\d+)$", task_id)
+        if m:
+            max_seq = max(max_seq, int(m.group(1)))
+
+    added = []
+    for task in generated_tasks[:3]:
+        desc_key = task["description"].strip().lower()
+        if desc_key in existing_descriptions:
+            continue
+
+        max_seq += 1
+        task_obj = {
+            "id": f"manager-{max_seq:03d}",
+            "project": task["project"],
+            "type": task["type"],
+            "priority": task["priority"],
+            "assignee": task["assignee"],
+            "description": task["description"],
+            "acceptance_criteria": task["acceptance_criteria"],
+            "estimated_minutes": 30,
+            "status": "open",
+            "depends_on": None,
+            "created_by": "manager",
+            "complexity": "low",
+            "notes": f"LLM manager reason: {task['reason']}",
+        }
+        data["tasks"].append(task_obj)
+        existing_descriptions.add(desc_key)
+        added.append(task_obj)
+
+    with open(task_file, "w") as f:
+        yaml.safe_dump(data, f, sort_keys=False)
+
+    return task_file, added
+
+
+def _append_manager_plan_to_brief(config, message_lines):
+    """Append manager plan result to today's brief."""
+    repo_root = config["repo_root"]
+    today = datetime.date.today().isoformat()
+    brief_file = repo_root / "briefs" / f"{today}.md"
+    brief_file.parent.mkdir(exist_ok=True)
+    if not brief_file.exists():
+        with open(brief_file, "w") as f:
+            f.write(f"# Daily Brief — {today}\n\n")
+
+    with open(brief_file, "a") as f:
+        f.write("Manager Plan:\n")
+        for line in message_lines:
+            f.write(f"- {line}\n")
+        f.write("\n")
+
+
+def run_manager_plan(config):
+    """
+    LLM-assisted manager planning.
+    Creates manager tasks only; never executes or mutates external repos.
+    """
+    packet = _build_manager_plan_packet(config)
+    model_info = config["models"].get("expensive", {})
+    provider = model_info.get("provider", "openai")
+    model = model_info.get("model", "gpt-4o")
+    max_tokens = min(int(model_info.get("max_tokens", 4096)), 4096)
+
+    response = call_llm(
+        provider,
+        model,
+        _manager_plan_system_prompt(),
+        json.dumps(packet, indent=2),
+        max_tokens,
+    )
+
+    if not response:
+        _append_manager_plan_to_brief(config, ["manager-plan failed: empty LLM response", "tasks_created: 0"])
+        print("MANAGER-PLAN tasks_created=0 status=llm_error")
+        return
+
+    parsed = None
+    parse_error = None
+    try:
+        parsed = json.loads(response.strip())
+    except Exception as e:
+        parse_error = str(e)
+
+    if not isinstance(parsed, dict):
+        _append_manager_plan_to_brief(config, [f"manager-plan failed: invalid JSON ({parse_error or 'not an object'})", "tasks_created: 0"])
+        print("MANAGER-PLAN tasks_created=0 status=invalid_json")
+        return
+
+    generated_raw = parsed.get("generated_tasks")
+    if not isinstance(generated_raw, list):
+        generated_raw = []
+
+    validated = []
+    for raw_task in generated_raw[:3]:
+        cleaned = _validate_generated_manager_task(raw_task)
+        if cleaned:
+            validated.append(cleaned)
+
+    task_file, added = _persist_manager_tasks(config, validated)
+    summary = parsed.get("summary")
+    summary_text = summary.strip() if isinstance(summary, str) and summary.strip() else "no summary provided"
+
+    brief_lines = [
+        f"model: {provider}/{model}",
+        f"generated_valid_tasks: {len(validated)}",
+        f"tasks_created: {len(added)}",
+        f"task_file: {task_file.name}",
+        f"summary: {summary_text}",
+    ]
+    if len(validated) != len(added):
+        brief_lines.append(f"deduplicated: {len(validated) - len(added)}")
+    _append_manager_plan_to_brief(config, brief_lines)
+
+    print(f"MANAGER-PLAN tasks_created={len(added)} file={task_file.name}")
+    for task in added:
+        print(f"- {task.get('id')} | {task.get('project')} | p{task.get('priority')} | {task.get('assignee')}")
+
+
 def load_relevant_code(code_path, task_description, max_tokens=50000):
     """
     Scan project code directory for files relevant to task description.
@@ -2485,6 +2912,10 @@ def run(args):
         run_manager(config)
         return
 
+    if getattr(args, "manager_plan", False):
+        run_manager_plan(config)
+        return
+
     if args.brief or args.logs:
         briefs_dir = config["repo_root"] / "briefs"
         if not briefs_dir.exists():
@@ -2791,6 +3222,7 @@ def main():
     parser.add_argument("--reject-proposal", type=str)
     parser.add_argument("--logs", action="store_true")
     parser.add_argument("--manager", action="store_true", help="Run manager decision cycle only")
+    parser.add_argument("--manager-plan", action="store_true", help="Run LLM-assisted manager planning only")
 
     args = parser.parse_args()
 
@@ -2810,6 +3242,7 @@ def main():
         and args.reject_proposal is None
         and not args.logs
         and not args.manager
+        and not args.manager_plan
     ):
         parser.error("Must specify --project or --all")
 
