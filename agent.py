@@ -105,6 +105,181 @@ def load_failure_protocol():
         return ""
 
 
+def _format_age_seconds(age_seconds):
+    """Return compact human-readable age string."""
+    if age_seconds < 60:
+        return f"{int(age_seconds)}s ago"
+    if age_seconds < 3600:
+        return f"{int(age_seconds // 60)}m ago"
+    if age_seconds < 86400:
+        return f"{int(age_seconds // 3600)}h ago"
+    return f"{int(age_seconds // 86400)}d ago"
+
+
+def print_state_status(config):
+    """
+    Read-only diagnostics of Office OS operating condition.
+    Includes memory freshness, brief freshness, approvals health,
+    task queue integrity, maintenance activity signals, and warnings.
+    """
+    repo_root = config["repo_root"]
+    now = datetime.datetime.now().timestamp()
+    today = datetime.date.today().isoformat()
+    warnings = []
+
+    print("\n=== STATE STATUS ===")
+    print(f"timestamp: {datetime.datetime.now().isoformat(timespec='seconds')}")
+
+    # Persistence + memory freshness
+    print("\n[persistence / memory]")
+    stale_threshold_days = 3
+    stale_seconds = stale_threshold_days * 24 * 60 * 60
+    missing_memory = []
+    stale_memory = []
+
+    for project_name, project_config in sorted(config.get("projects", {}).items()):
+        memory_rel = project_config.get("memory", f"projects/{project_name}/memory.md")
+        memory_path = repo_root / memory_rel
+        if not memory_path.exists():
+            missing_memory.append(project_name)
+            print(f"- {project_name}: missing ({memory_rel})")
+            continue
+
+        age_seconds = max(0, now - memory_path.stat().st_mtime)
+        freshness = _format_age_seconds(age_seconds)
+        is_stale = age_seconds > stale_seconds
+        if is_stale:
+            stale_memory.append(project_name)
+        status_label = "stale" if is_stale else "fresh"
+        print(f"- {project_name}: {status_label} ({freshness})")
+
+    if missing_memory:
+        warnings.append(f"missing memory files: {', '.join(missing_memory)}")
+    if stale_memory:
+        warnings.append(f"stale memory files (> {stale_threshold_days}d): {', '.join(stale_memory)}")
+
+    # Task queue integrity
+    print("\n[task queue]")
+    tasks_dir = repo_root / "tasks"
+    task_files = sorted(tasks_dir.glob("*.yaml")) if tasks_dir.exists() else []
+    print(f"- task files: {len(task_files)}")
+    if not task_files:
+        warnings.append("no tasks found")
+
+    malformed_task_files = 0
+    for task_file in task_files:
+        try:
+            with open(task_file) as f:
+                data = yaml.safe_load(f) or {}
+            if not isinstance(data, dict) or not isinstance(data.get("tasks"), list):
+                malformed_task_files += 1
+        except Exception:
+            malformed_task_files += 1
+    print(f"- malformed task files: {malformed_task_files}")
+    if malformed_task_files:
+        warnings.append(f"malformed task files: {malformed_task_files}")
+
+    # Brief writing freshness
+    print("\n[brief writing]")
+    briefs_dir = repo_root / "briefs"
+    today_brief = briefs_dir / f"{today}.md"
+    if today_brief.exists():
+        age_seconds = max(0, now - today_brief.stat().st_mtime)
+        print(f"- today's brief ({today}.md): present ({_format_age_seconds(age_seconds)})")
+    else:
+        print(f"- today's brief ({today}.md): missing")
+        warnings.append("no brief for today")
+
+    # Approvals health (read-only)
+    print("\n[approvals]")
+    approvals_file = repo_root / "approvals" / "pending.json"
+    pending_count = 0
+    malformed_approvals = False
+    if approvals_file.exists():
+        try:
+            with open(approvals_file) as f:
+                approvals_data = json.load(f)
+            if isinstance(approvals_data, list):
+                pending_count = len(approvals_data)
+                print(f"- pending approvals: {pending_count}")
+            else:
+                malformed_approvals = True
+                print("- pending approvals: malformed (expected list)")
+        except Exception:
+            malformed_approvals = True
+            print("- pending approvals: malformed (invalid JSON)")
+    else:
+        print("- pending approvals file: missing")
+        pending_count = 0
+
+    if malformed_approvals:
+        warnings.append("malformed approvals file")
+    if pending_count > 0:
+        warnings.append(f"pending approvals: {pending_count}")
+
+    # Maintenance / bacteria activity signals
+    print("\n[maintenance / bacteria]")
+    maintenance_signals = []
+    logs_dir = repo_root / "logs"
+    if logs_dir.exists():
+        for log_file in sorted(logs_dir.glob("run-*.txt"))[-5:]:
+            try:
+                text = log_file.read_text(encoding="utf-8", errors="ignore").lower()
+            except Exception:
+                continue
+            if "maintenance" in text or "cleanup candidates" in text:
+                maintenance_signals.append(log_file.name)
+    print(f"- maintenance logs with signals (last 5): {len(maintenance_signals)}")
+    if maintenance_signals:
+        print(f"- recent signal files: {', '.join(maintenance_signals)}")
+
+    cleanup_mentions = 0
+    for project_config in config.get("projects", {}).values():
+        memory_rel = project_config.get("memory")
+        if not memory_rel:
+            continue
+        memory_path = repo_root / memory_rel
+        if not memory_path.exists():
+            continue
+        try:
+            text = memory_path.read_text(encoding="utf-8", errors="ignore").lower()
+        except Exception:
+            continue
+        cleanup_mentions += text.count("cleanup candidates:")
+    print(f"- cleanup candidate sections in memory: {cleanup_mentions}")
+
+    maintenance_system_exists = hasattr(sys.modules[__name__], "run_maintenance")
+    if maintenance_system_exists and not maintenance_signals and cleanup_mentions == 0:
+        warnings.append("maintenance logs missing despite maintenance system presence")
+
+    # Git branch status (safe, best effort)
+    print("\n[git]")
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=3
+        )
+        branch = (result.stdout or "").strip()
+        if result.returncode == 0 and branch:
+            print(f"- current branch: {branch}")
+        else:
+            print("- current branch: unavailable")
+    except Exception:
+        print("- current branch: unavailable")
+
+    # Warning signals summary
+    print("\n[warnings]")
+    if warnings:
+        for warning in warnings:
+            print(f"- {warning}")
+    else:
+        print("- none")
+    print("")
+
+
 # ============================================================================
 # PROJECT CONTEXT
 # ============================================================================
@@ -1938,6 +2113,10 @@ def run(args):
     if args.approve:
         args.approval = args.approve
 
+    if args.state_status:
+        print_state_status(config)
+        return
+
     if args.brief or args.logs:
         briefs_dir = config["repo_root"] / "briefs"
         if not briefs_dir.exists():
@@ -2195,6 +2374,7 @@ def main():
     parser.add_argument("--once", action="store_true", help="Execute only first task")
     parser.add_argument("--dry-run", action="store_true", help="Simulate without changes")
     parser.add_argument("--status", action="store_true", help="Show system status (no execution)")
+    parser.add_argument("--state-status", action="store_true", help="Show Office OS operating condition diagnostics")
     parser.add_argument("--approval", nargs="?", const="list")
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--brief", action="store_true")
@@ -2209,6 +2389,7 @@ def main():
         not args.all
         and not args.project
         and not args.status
+        and not args.state_status
         and args.approval is None
         and not args.run
         and not args.brief
