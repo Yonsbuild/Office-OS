@@ -893,7 +893,26 @@ def compare_validation(pre_output, post_output):
 # FILE CHANGES
 # ============================================================================
 
-def parse_and_apply_changes(code_path, llm_response):
+def enforce_write_policy(target_path, action, config):
+    repo_root = config["repo_root"].resolve()
+    target_path = target_path.resolve()
+
+    # Block all deletes globally (for now)
+    if action == "delete":
+        raise Exception("Blocked: delete operations are disabled")
+
+    # Allow all writes inside Office OS repo
+    try:
+        target_path.relative_to(repo_root)
+        return "allow"
+    except ValueError:
+        pass
+
+    # External repo → do not apply
+    return "propose"
+
+
+def parse_and_apply_changes(code_path, llm_response, config):
     """
     Extract <file_change> XML tags from LLM response and write files to disk.
     Format: <file_change path="relative/path" action="create|modify|delete">
@@ -921,17 +940,18 @@ def parse_and_apply_changes(code_path, llm_response):
         file_path = code_path / file_path_str
 
         try:
+            mode = enforce_write_policy(file_path, action, config)
+
+            if mode == "propose":
+                print(f"[WRITE_POLICY] Intercepted external write proposal: {file_path_str} ({action})")
+                continue
+
             if action == "create" or action == "modify":
                 # Ensure parent directory exists
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(file_path, "w") as f:
                     f.write(content)
                 changed_files.append(file_path_str)
-
-            elif action == "delete":
-                if file_path.exists():
-                    file_path.unlink()
-                    changed_files.append(file_path_str)
 
         except Exception as e:
             errors.append(f"Error processing {file_path_str}: {e}")
@@ -977,6 +997,12 @@ def extract_memory_changes(repo_root, llm_response, project_name, config):
             full_path = repo_root / file_path_str
 
         try:
+            mode = enforce_write_policy(full_path, action, config)
+
+            if mode == "propose":
+                print(f"[WRITE_POLICY] Intercepted external write proposal: {file_path_str} ({action})")
+                continue
+
             if action == "create" or action == "modify":
                 # Ensure parent directory exists
                 full_path.parent.mkdir(parents=True, exist_ok=True)
@@ -984,12 +1010,6 @@ def extract_memory_changes(repo_root, llm_response, project_name, config):
                     f.write(content)
                 changed_files.append(str(file_path_str))
                 print(f"[MEMORY] Updated {full_path}")
-
-            elif action == "delete":
-                if full_path.exists():
-                    full_path.unlink()
-                    changed_files.append(str(file_path_str))
-                    print(f"[MEMORY] Deleted {full_path}")
 
         except Exception as e:
             print(f"WARNING: Error processing memory file {file_path_str}: {e}", file=sys.stderr)
@@ -1055,7 +1075,7 @@ content
         return {"success": False, "details": "LLM call failed during recovery"}
 
     # Parse and apply changes
-    changes = parse_and_apply_changes(code_path, response)
+    changes = parse_and_apply_changes(code_path, response, config)
 
     if not changes["success"]:
         return {"success": False, "details": "\n".join(changes["errors"])}
@@ -1922,7 +1942,7 @@ For code: use paths relative to the project code directory
 
         # Extract and apply code changes (for non-read-only tasks with code)
         if code_path and code_path.exists():
-            changes = parse_and_apply_changes(code_path, response)
+            changes = parse_and_apply_changes(code_path, response, config)
             changed_files.extend(changes["changed_files"])
 
             if not changes["success"] and changes["errors"]:
