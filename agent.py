@@ -822,6 +822,10 @@ Hard constraints:
 - no worker execution
 - no code mutation
 - if more context is needed, create a targeted inspection task instead
+Return ONLY valid JSON.
+Do not use markdown.
+Do not wrap in code fences.
+No commentary before or after JSON.
 Return strict JSON only with this schema:
 {
   "generated_tasks": [
@@ -838,6 +842,17 @@ Return strict JSON only with this schema:
   "summary": "..."
 }
 Limit to at most 3 generated tasks."""
+
+
+def _log_manager_plan_raw_response(repo_root, response):
+    """Persist raw manager-plan LLM response for debugging parse failures."""
+    logs_dir = repo_root / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    raw_log_file = logs_dir / f"manager_plan_raw_{timestamp}.txt"
+    with open(raw_log_file, "w") as f:
+        f.write(response)
+    return raw_log_file.name
 
 
 def _validate_generated_manager_task(task):
@@ -998,14 +1013,24 @@ def run_manager_plan(config):
 
     parsed = None
     parse_error = None
+    stripped = response.strip()
     try:
-        parsed = json.loads(response.strip())
+        parsed = json.loads(stripped)
     except Exception as e:
         parse_error = str(e)
+        first_brace = stripped.find("{")
+        last_brace = stripped.rfind("}")
+        if first_brace != -1 and last_brace != -1 and first_brace < last_brace:
+            try:
+                parsed = json.loads(stripped[first_brace:last_brace + 1])
+                parse_error = None
+            except Exception as inner_e:
+                parse_error = str(inner_e)
 
     if not isinstance(parsed, dict):
+        raw_log = _log_manager_plan_raw_response(config["repo_root"], response)
         _append_manager_plan_to_brief(config, [f"manager-plan failed: invalid JSON ({parse_error or 'not an object'})", "tasks_created: 0"])
-        print("MANAGER-PLAN tasks_created=0 status=invalid_json")
+        print(f"MANAGER-PLAN tasks_created=0 status=invalid_json raw_log={raw_log}")
         return
 
     generated_raw = parsed.get("generated_tasks")
