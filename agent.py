@@ -350,7 +350,7 @@ def load_tasks(config, project_name):
 
 def _load_all_tasks_with_metadata(config):
     """
-    Load all task YAML files for configured projects.
+    Load all task YAML files for configured projects plus manager task files.
     Returns list of dicts: {"task": task_dict, "task_file": Path}.
     """
     repo_root = config["repo_root"]
@@ -372,6 +372,18 @@ def _load_all_tasks_with_metadata(config):
             for task in data.get("tasks", []):
                 if isinstance(task, dict):
                     task_records.append({"task": task, "task_file": task_file})
+
+    for task_file in sorted((repo_root / "tasks").glob("manager-*.yaml")):
+        try:
+            with open(task_file) as f:
+                data = yaml.safe_load(f) or {}
+        except Exception as e:
+            print(f"WARNING: Failed to load {task_file}: {e}", file=sys.stderr)
+            continue
+
+        for task in data.get("tasks", []):
+            if isinstance(task, dict):
+                task_records.append({"task": task, "task_file": task_file})
 
     return task_records
 
